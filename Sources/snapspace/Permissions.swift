@@ -23,12 +23,15 @@ enum Permissions {
 
     /// Print a human-readable status readout for `snapspace status`.
     /// `tapRunning` is supplied by the caller since tap state lives on the
-    /// interceptor instance.
-    static func printStatus(tapRunning: Bool) {
+    /// interceptor instance. `cgsAvailable` reports whether the private CGS
+    /// topology symbols resolved (SPEC §1.1 capability check).
+    static func printStatus(tapRunning: Bool, cgsAvailable: Bool) {
         let ax = isAccessibilityGranted ? "yes" : "no"
         let tap = tapRunning ? "yes" : "no"
+        let cgs = cgsAvailable ? "yes" : "no"
         print("SnapSpace status")
         print("  Accessibility granted: \(ax)")
         print("  Event tap running:     \(tap)")
+        print("  CGS symbols resolved:  \(cgs)")
     }
 }

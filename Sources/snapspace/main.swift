@@ -5,9 +5,9 @@ import AppKit
 // With CLI args -> headless mode (call the engine directly, print, exit).
 // With no args  -> start the menu-bar NSApplication.
 
-/// The engine seam. Swap `StubSwitchEngine()` for `GestureSwitchEngine()`
-/// once the real engine lands.
-let engine: SwitchEngine = StubSwitchEngine()
+/// The engine seam. `GestureSwitchEngine` posts real synthetic dock-swipe
+/// gestures (SPEC §1). `StubSwitchEngine` remains available for tests / dry runs.
+let engine = GestureSwitchEngine()
 
 let args = Array(CommandLine.arguments.dropFirst())
 
@@ -19,7 +19,7 @@ if args.isEmpty {
 
 // MARK: - CLI mode
 
-func runCLI(_ args: [String], engine: SwitchEngine) -> Int32 {
+func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
     switch args.first {
     case "switch":
         guard args.count >= 2 else {
@@ -43,8 +43,9 @@ func runCLI(_ args: [String], engine: SwitchEngine) -> Int32 {
         }
 
     case "status":
-        // No live tap in CLI mode, so report tap as not running.
-        Permissions.printStatus(tapRunning: false)
+        // No live tap in CLI mode, so report tap as not running. CGS symbol
+        // resolution is the capability check per SPEC §1.1 / §6.
+        Permissions.printStatus(tapRunning: false, cgsAvailable: engine.cgsAvailable)
         return 0
 
     default:
@@ -64,7 +65,7 @@ func runCLI(_ args: [String], engine: SwitchEngine) -> Int32 {
 // MARK: - Menu-bar app mode
 
 @MainActor
-func runMenuBarApp(engine: SwitchEngine) {
+func runMenuBarApp(engine: GestureSwitchEngine) {
     let app = NSApplication.shared
     // LSUIElement is also set in Info.plist; set it here so running the raw
     // binary (unbundled) still behaves as an accessory with no dock icon.
@@ -77,12 +78,12 @@ func runMenuBarApp(engine: SwitchEngine) {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let engine: SwitchEngine
+    private let engine: GestureSwitchEngine
     private var interceptor: SwipeInterceptor!
     private var hotkeys: HotkeyManager!
     private var statusItem: StatusItemController!
 
-    init(engine: SwitchEngine) {
+    init(engine: GestureSwitchEngine) {
         self.engine = engine
         super.init()
     }
@@ -97,11 +98,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys = HotkeyManager(engine: engine)
         hotkeys.register()
 
+        // SPEC §2.4 / §5: reset the prediction dictionary to live CGS data
+        // whenever the OS reports a real space change, so rapid repeated swipes
+        // don't overshoot bounds or snap back off a stale predicted index.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [engine] _ in
+            engine.resetPredictions()
+        }
+
         interceptor.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         interceptor?.teardown()
         hotkeys?.unregister()
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 }

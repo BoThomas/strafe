@@ -8,4 +8,8 @@ This is a SwiftPM executable package (no Xcode project). Build and run the raw b
 
 ## Permissions
 
-Posting gestures and running the event tap requires Accessibility permission (System Settings › Privacy & Security › Accessibility). The app prompts for this on first launch, and the menu shows whether it has been granted; `snapspace status` prints the same readout from the command line. The switch engine is currently a logging stub — the real gesture engine is specced separately and drops in behind the `SwitchEngine` protocol without changing any call sites.
+Posting gestures and running the event tap requires Accessibility permission (System Settings › Privacy & Security › Accessibility). The app prompts for this on first launch, and the menu shows whether it has been granted; `snapspace status` prints the same readout from the command line (including whether the private CoreGraphicsServices symbols resolved). The real gesture engine (`GestureSwitchEngine`) sits behind the `SwitchEngine` protocol; a logging `StubSwitchEngine` is kept alongside it for tests and dry runs.
+
+## Credits
+
+The core switching mechanism — synthesizing a high-velocity Dock-swipe `CGEvent` with near-zero progress, posting the began→changed→ended sequence, and intercepting/suppressing the user's real swipe via an active session event tap — is derived from [InstantSpaceSwitcher](https://github.com/jurplel/InstantSpaceSwitcher) by jurplel (MIT License, Copyright © 2026 jurplel), which served as the reference implementation for SnapSpace's low-level `CSnapSpace` shim.

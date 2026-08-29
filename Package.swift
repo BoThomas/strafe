@@ -7,8 +7,20 @@ let package = Package(
         .macOS(.v15)
     ],
     targets: [
+        .target(
+            name: "CSnapSpace",
+            path: "Sources/CSnapSpace",
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedFramework("ApplicationServices"),
+                .linkedFramework("CoreFoundation"),
+                .linkedFramework("CoreGraphics"),
+                .linkedFramework("IOKit")
+            ]
+        ),
         .executableTarget(
             name: "snapspace",
+            dependencies: ["CSnapSpace"],
             path: "Sources/snapspace"
         )
     ]
