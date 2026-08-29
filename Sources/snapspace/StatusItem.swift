@@ -54,9 +54,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     // MARK: - Actions
 
     @objc private func toggleEnabled() {
-        if interceptor.isRunning {
-            interceptor.disable()
-        } else {
+        // Toggle interception. The tap stays alive (so it can re-enable itself
+        // after a system auto-disable); `overrideEnabled` gates whether real
+        // swipes are actually suppressed and replaced (SPEC §2.2).
+        interceptor.overrideEnabled.toggle()
+        if interceptor.overrideEnabled && !interceptor.isRunning {
             interceptor.start()
         }
         refresh()
@@ -70,7 +72,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     // MARK: - State
 
     private func refresh() {
-        toggleItem.title = interceptor.isRunning ? "Disable" : "Enable"
+        toggleItem.title = interceptor.overrideEnabled ? "Disable" : "Enable"
         let granted = Permissions.isAccessibilityGranted
         accessibilityItem.title = "Accessibility granted: \(granted ? "yes" : "no")"
     }
