@@ -6,6 +6,14 @@ let package = Package(
     platforms: [
         .macOS(.v15)
     ],
+    products: [
+        // Exposes the CStrafe target so the standalone `bench/` measurement
+        // package (a dev tool, not part of the shipped strafe app) can import
+        // the exact same synthesis code path via `.package(path: "..")`. This
+        // is the only concession the main package makes to bench; the app
+        // itself does not consume this product.
+        .library(name: "CStrafe", targets: ["CStrafe"])
+    ],
     targets: [
         .target(
             name: "CStrafe",
