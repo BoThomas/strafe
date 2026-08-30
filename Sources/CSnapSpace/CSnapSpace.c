@@ -234,10 +234,30 @@ int64_t snapspace_gesture_phase_changed(void)     { return kCGSGesturePhaseChang
 int64_t snapspace_gesture_phase_ended(void)       { return kCGSGesturePhaseEnded; }
 int64_t snapspace_gesture_phase_cancelled(void)   { return kCGSGesturePhaseCancelled; }
 
-// Raw tap mask (SPEC §2.1): keyDown | keyUp | (1<<29) | (1<<30).
+// Raw tap mask: (1<<29) gesture | (1<<30) dock-control ONLY.
+//
+// KEY-EVENTS-IN-MASK DETERMINATION (see docs/SPEC.md §2.1):
+// The upstream reference (and this file's earlier revision) also OR'd in
+// keyDown|keyUp. That was NOT required for correct interception and has been
+// removed. Evidence:
+//   - The interceptor state machine (SwipeInterceptor.handle) is driven ENTIRELY
+//     by dock-control gesture phases (field 132) on CGSEventType 29/30. Nothing
+//     in the callback ever inspects a key event: a keyDown/keyUp fails the
+//     `cgsType == dockControl || cgsType == gesture` guard on field 55 and is
+//     passed straight through, unused. There is no Exposé-via-keys handling, no
+//     prediction reset on keys, and no key-driven tap re-enable.
+//   - Tap re-enable is handled via the kCGEventTapDisabledByTimeout /
+//     ByUserInput callbacks, which the system delivers to the callback
+//     REGARDLESS of the event mask — so dropping keys does not affect re-enable.
+//   - Global switch hotkeys use Carbon RegisterEventHotKey (HotkeyManager), a
+//     separate mechanism that does not depend on this tap seeing key events.
+// Cost of the old mask: every keystroke system-wide round-tripped synchronously
+// through this process's active tap only to be passed through, adding keyboard
+// latency and a wakeup per key. With keys removed the active tap wakes only on
+// real space-swipe gestures, dropping idle keyboard wakeups to zero. Behavior is
+// unchanged because the removed events were never acted upon.
 uint64_t snapspace_tap_event_mask(void) {
-    return CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp)
-        | (1ULL << kCGSEventGesture) | (1ULL << kCGSEventDockControl);
+    return (1ULL << kCGSEventGesture) | (1ULL << kCGSEventDockControl);
 }
 
 // --- Overlay / Exposé detection (SPEC §2.5) -------------------------------

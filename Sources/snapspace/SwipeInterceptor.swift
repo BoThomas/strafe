@@ -42,8 +42,10 @@ final class SwipeInterceptor: @unchecked Sendable {
             return
         }
 
-        // SPEC §2.1: keyDown | keyUp | (1<<29) | (1<<30), sourced from C so the
-        // raw private type bits are single-sourced with the synthesizer.
+        // Gesture (1<<29) | dock-control (1<<30) only, sourced from C so the raw
+        // private type bits are single-sourced with the synthesizer. Key events
+        // are intentionally excluded (they were never acted on and only added
+        // per-keystroke latency) — see the determination comment in CSnapSpace.c.
         let mask = CGEventMask(snapspace_tap_event_mask())
 
         // Trampoline `self` through the tap's userInfo pointer.

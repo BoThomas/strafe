@@ -68,8 +68,9 @@ int64_t snapspace_gesture_phase_changed(void);     // 2
 int64_t snapspace_gesture_phase_ended(void);       // 4
 int64_t snapspace_gesture_phase_cancelled(void);   // 8
 
-// Raw event mask the tap must register (SPEC §2.1): keyDown | keyUp plus the
-// two private types by raw bit shift (1<<29)|(1<<30).
+// Raw event mask the tap must register: the two private gesture types by raw
+// bit shift (1<<29)|(1<<30). Key events are deliberately NOT masked — see the
+// KEY-EVENTS-IN-MASK DETERMINATION at the definition in CSnapSpace.c.
 uint64_t snapspace_tap_event_mask(void);
 
 // --- Overlay / Exposé passthrough (SPEC §2.5) -----------------------------
