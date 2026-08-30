@@ -109,18 +109,20 @@ final class Benchmark {
         defer { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
 
         // 1 warmup trial, discarded (SPEC).
-        _ = runTrial(index: 0, direction: .right, spaceChangeStamp: { stamp.value },
+        _ = runTrial(index: 0, spaceChangeStamp: { stamp.value },
                      resetStamp: { stamp.value = nil })
 
         var results: [TrialResult] = []
         results.reserveCapacity(trials)
 
         for i in 0..<trials {
-            // Alternate direction so state returns home (SPEC): even trials go
-            // right (from space 1 -> 2), odd trials go left (2 -> 1).
-            let direction: SwitchDirection = (i % 2 == 0) ? .right : .left
+            // Direction is derived from ground truth inside runTrial (which demo
+            // window is actually frontmost), so trials alternate naturally when
+            // switches succeed AND self-correct when one fails — an assumed
+            // even/odd pattern drifts after any failed switch and produces false
+            // sub-10ms hits on a window that never left the screen.
             let result = runTrial(
-                index: i + 1, direction: direction,
+                index: i + 1,
                 spaceChangeStamp: { stamp.value },
                 resetStamp: { stamp.value = nil }
             )
@@ -138,15 +140,25 @@ final class Benchmark {
         return summary
     }
 
-    /// One trial. `direction` is the switch to trigger; the destination space is
-    /// the opposite of where we currently are (right -> space 2, left -> space 1).
+    /// One trial. Direction is derived from ground truth: whichever demo window
+    /// is frontmost is the source; the trial switches toward the other one.
     private func runTrial(
         index: Int,
-        direction: SwitchDirection,
         spaceChangeStamp: () -> CFTimeInterval?,
         resetStamp: () -> Void
     ) -> TrialResult {
-        let destination: DemoSpace = direction == .right ? .two : .one
+        guard let here = controller.activeDemoSpace() else {
+            // Neither (or both) demo windows report as frontmost: the run has
+            // been disturbed (e.g. a manual switch to a third space). Guessing
+            // here is how false positives happen — bail out loudly instead.
+            FileHandle.standardError.write(Data("""
+            bench: cannot determine the current demo space — the machine was \
+            likely used mid-run. Keep hands off and re-run.\n
+            """.utf8))
+            exit(4)
+        }
+        let direction: SwitchDirection = here == .one ? .right : .left
+        let destination: DemoSpace = here == .one ? .two : .one
         recorder.arm(destination: destination)
         resetStamp()
 

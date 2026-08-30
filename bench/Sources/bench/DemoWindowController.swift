@@ -65,6 +65,21 @@ final class DemoWindowController {
         self.recorder = recorder
     }
 
+    /// Ground truth for trial direction: which demo space is frontmost right
+    /// now, per AppKit's own space tracking. Returns nil when indeterminate
+    /// (e.g. the user manually switched to a third space mid-run) — callers
+    /// must not guess in that case, it is exactly the bookkeeping-drift bug
+    /// that produced false sub-10ms "hits" in early smoke runs.
+    func activeDemoSpace() -> DemoSpace? {
+        let oneActive = windows[.one]?.isOnActiveSpace ?? false
+        let twoActive = windows[.two]?.isOnActiveSpace ?? false
+        switch (oneActive, twoActive) {
+        case (true, false): return .one
+        case (false, true): return .two
+        default: return nil
+        }
+    }
+
     /// Center of the main screen's *content* area (below the menu bar), in the
     /// global display coordinate space CGEvent uses (origin top-left, y down).
     /// This is where the measurement harness posts probe clicks.
