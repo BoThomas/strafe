@@ -22,7 +22,7 @@ do so. The tap's event mask is defined in exactly one place, and it covers
 **only gesture and dock-control events** — not keystrokes.
 
 - **Tap mask definition:** `Sources/CStrafe/CStrafe.c`, function
-  `strafe_tap_event_mask()` (near line 259):
+  `strafe_tap_event_mask()` (near line 260):
 
   ```c
   uint64_t strafe_tap_event_mask(void) {
@@ -35,12 +35,13 @@ do so. The tap's event mask is defined in exactly one place, and it covers
 
 - **Why keys are excluded — determination comment:** immediately above that
   function in `Sources/CStrafe/CStrafe.c` (the `KEY-EVENTS-IN-MASK
-  DETERMINATION` block, around lines 237–258) documents that an earlier
+  DETERMINATION` block, around lines 240–259) documents that an earlier
   revision masked key events, that they were never acted on, and that they were
   removed. The tap now wakes only on real space-swipe gestures.
 
 - **The tap is installed here:** `Sources/strafe/SwipeInterceptor.swift`,
-  `SwipeInterceptor.start()` (around line 54), using
+  `SwipeInterceptor.start()` (around line 39; the `tapCreate` call itself is at
+  line 54), using
   `CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
   options: .defaultTap, eventsOfInterest: mask, ...)` where `mask` comes
   straight from `strafe_tap_event_mask()` above.
@@ -68,6 +69,14 @@ That is the entire surface of event data strafe inspects: enough to tell a real
 horizontal 3-finger space swipe from anything else, and its direction. No
 coordinates, no window contents, no clipboard, no key codes.
 
+Beyond the swipe event itself, strafe also calls `CGWindowListCopyWindowInfo`
+(reading window owner names and layer numbers, to detect whether Exposé/Mission
+Control is open so it can pass real swipes through — `strafe_is_expose_active`,
+`Sources/CStrafe/CStrafe.c` ~line 266) and reads the current cursor location to
+pick which display to switch on (`copy_cursor_display_identifier`, same file
+~line 96). Neither the window list nor the cursor position is stored or
+transmitted; both are read, used for that one decision, and discarded.
+
 ---
 
 ## What strafe never does
@@ -88,8 +97,10 @@ Each of these is verifiable with a single grep over `Sources/`.
   (`ApplicationServices`, `CoreFoundation`, `CoreGraphics`, `IOKit`). Read the
   27-line `Package.swift` in full.
 
-- **No analytics or telemetry.** There is no logging destination other than
-  `stderr` (`grep -rn FileHandle.standardError Sources/`), and nothing that
+- **No analytics or telemetry.** strafe writes only to the process's own
+  `stderr` (`grep -rn FileHandle.standardError Sources/`) and `stdout` (the
+  `strafe status` CLI readout in `Permissions.printStatus`, `Sources/strafe/Permissions.swift`
+  ~line 28) — never to a network socket, a file, or an analytics sink. Nothing
   batches, serializes, or transmits usage.
 
 - **No auto-update.** strafe never downloads or executes anything. There is no
@@ -97,7 +108,7 @@ Each of these is verifiable with a single grep over `Sources/`.
 
 - **No dynamic loading.** strafe does not `dlopen`/`dlsym` anything. The private
   CGS symbols it uses are weak-imported at link time and guarded by an address
-  check (`strafe_cgs_available`, `CStrafe.c` ~line 56):
+  check (`strafe_cgs_available`, `CStrafe.c` ~line 57):
 
   ```
   grep -rniE 'dlopen|dlsym' Sources/    # zero hits
@@ -153,7 +164,10 @@ grep -n 'strafe_tap_event_mask' Sources/CStrafe/CStrafe.c
 ```
 
 For the deep dive on exactly which private CGEvent fields are used and why, read
-`docs/SPEC.md`.
+`docs/SPEC.md`. Caveat: `docs/SPEC.md` documents the upstream reference
+implementation strafe was reimplemented from — the `tccutil` call, the second
+event tap, and the key-event masking it describes are upstream-only and
+intentionally absent from strafe.
 
 ---
 

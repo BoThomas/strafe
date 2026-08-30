@@ -1,5 +1,25 @@
 # strafe — Instant macOS Spaces Switching: Implementation Spec
 
+> ⚠️ **THIS FILE DOCUMENTS THE UPSTREAM PROJECT, NOT strafe.**
+>
+> This spec describes `jurplel/InstantSpaceSwitcher` (ISS) — the reference
+> implementation that strafe was independently reimplemented *from*. It is a
+> record of how the upstream C project works, **not** a description of strafe's
+> own code. Wherever this document and strafe's source disagree, the source is
+> authoritative. In particular, several things described below exist **only in
+> upstream and are intentionally absent from strafe**:
+>
+> - **The `tccutil reset Accessibility` subprocess call** (§4). strafe never
+>   shells out to `tccutil` or any other process.
+> - **The second event tap** used for hotkey recording (§4). strafe has exactly
+>   one event tap and records hotkeys via Carbon, not a tap.
+> - **Key-event masking / key events in the tap mask** (§2.1). strafe's tap masks
+>   only the two private gesture types (`1<<29 | 1<<30`); it never masks or
+>   inspects `kCGEventKeyDown`/`kCGEventKeyUp`, so it cannot observe keystrokes.
+>
+> For the authoritative statement of what strafe actually does — and grep-able
+> proof of what it does not — see [SECURITY.md](../SECURITY.md).
+
 Source of truth for this spec: reverse-engineered from `jurplel/InstantSpaceSwitcher`
 (ISS), v2.0, MIT-licensed. Core mechanism lives entirely in one C file:
 `Sources/ISS/ISS.c` (+ header `Sources/ISS/include/ISS.h`). Swift is only glue

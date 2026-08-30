@@ -72,7 +72,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 PLIST
 
 echo "==> Ad-hoc code signing…"
-codesign --force --sign - --deep "$APP_DIR"
+# Sign the app bundle directly. `--deep` is deprecated; modern codesign signs
+# nested code correctly, and this bundle has no nested code anyway.
+codesign --force --sign - "$APP_DIR"
 
 echo ""
 echo "Built: $APP_DIR"

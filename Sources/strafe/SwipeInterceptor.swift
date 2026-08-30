@@ -123,6 +123,11 @@ final class SwipeInterceptor: @unchecked Sendable {
         // heavy user input. Re-enable and pass the event through, else the
         // override silently dies.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            // A disable can swallow a gesture's `ended`/`cancelled`, leaving the
+            // state machine mid-track. Reset before re-enabling so a dropped
+            // gesture-end can't leave us stuck suppressing companion events.
+            swipeTracking = false
+            swipeFired = false
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
             return passthrough
         }
@@ -193,6 +198,15 @@ final class SwipeInterceptor: @unchecked Sendable {
                     let dir: SwitchDirection = velocity > 0 ? .right : .left
                     swipeFired = true
                     try? engine.switchSpace(dir)
+                } else {
+                    // Direction was never determined (no nonzero-progress
+                    // `changed`, and zero end velocity), so strafe never acted on
+                    // this gesture. Reset state and pass the original 'ended'
+                    // through so the OS handles the gesture it still owns, rather
+                    // than suppressing an event we never overrode.
+                    swipeTracking = false
+                    swipeFired = false
+                    return passthrough
                 }
             }
             swipeTracking = false
