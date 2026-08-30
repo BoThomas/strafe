@@ -67,36 +67,30 @@ ObjC.import('Foundation');
 var env = $.NSProcessInfo.processInfo.environment;
 function e(k){ return ObjC.unwrap(env.objectForKey(k)); }
 var text = e('TEXT'), out = e('OUT');
-var fs = parseFloat(e('FS')), w = parseFloat(e('W')), h = parseFloat(e('H'));
+var fs = parseFloat(e('FS')), w = parseInt(e('W')), h = parseInt(e('H'));
 var r = parseFloat(e('R')), g = parseFloat(e('G')), b = parseFloat(e('B')), a = parseFloat(e('A'));
-var weightName = e('WEIGHT');
 var weightMap = {
   regular: $.NSFontWeightRegular, medium: $.NSFontWeightMedium,
   bold: $.NSFontWeightBold, heavy: $.NSFontWeightHeavy
 };
-var weight = weightMap[weightName] || $.NSFontWeightBold;
-var img = $.NSImage.alloc.initWithSize($.NSMakeSize(w, h));
-img.lockFocus;
-var para = $.NSMutableParagraphStyle.alloc.init;
-para.alignment = $.NSTextAlignmentCenter;
-para.lineBreakMode = $.NSLineBreakByWordWrapping;
-var font = $.NSFont.systemFontOfSizeWeight(fs, weight);
-var color = $.NSColor.colorWithSRGBRedGreenBlueAlpha(r, g, b, a);
+var weight = weightMap[e('WEIGHT')] || $.NSFontWeightBold;
+// Draw into an explicit 1:1-pixel bitmap context. NSImage.lockFocus renders at
+// the display's 2x backing scale, and drawInRect's paragraph centering
+// mis-places text through the JXA bridge — drawAtPoint with a measured width
+// is deterministic (verified empirically; do not "simplify" back).
+var rep = $.NSBitmapImageRep.alloc.initWithBitmapDataPlanesPixelsWidePixelsHighBitsPerSampleSamplesPerPixelHasAlphaIsPlanarColorSpaceNameBytesPerRowBitsPerPixel(
+  null, w, h, 8, 4, true, false, $.NSCalibratedRGBColorSpace, 0, 0);
+$.NSGraphicsContext.saveGraphicsState;
+$.NSGraphicsContext.setCurrentContext($.NSGraphicsContext.graphicsContextWithBitmapImageRep(rep));
 var attrs = $.NSMutableDictionary.alloc.init;
-attrs.setObjectForKey(font, $.NSFontAttributeName);
-attrs.setObjectForKey(color, $.NSForegroundColorAttributeName);
-attrs.setObjectForKey(para, $.NSParagraphStyleAttributeName);
+attrs.setObjectForKey($.NSFont.systemFontOfSizeWeight(fs, weight), $.NSFontAttributeName);
+attrs.setObjectForKey($.NSColor.colorWithSRGBRedGreenBlueAlpha(r, g, b, a), $.NSForegroundColorAttributeName);
 var ns = $.NSString.alloc.initWithUTF8String(text);
-var bbox = ns.boundingRectWithSizeOptionsAttributes(
-  $.NSMakeSize(w, h),
-  $.NSStringDrawingUsesLineFragmentOrigin,
-  attrs
-);
-var y = (h - bbox.size.height) / 2.0;
-ns.drawInRectWithAttributes($.NSMakeRect(0, y, w, bbox.size.height), attrs);
-img.unlockFocus;
-var tiff = img.TIFFRepresentation;
-var rep = $.NSBitmapImageRep.imageRepWithData(tiff);
+var size = ns.sizeWithAttributes(attrs);
+ns.drawAtPointWithAttributes(
+  $.NSMakePoint((w - size.width) / 2.0, (h - size.height) / 2.0), attrs);
+$.NSGraphicsContext.currentContext.flushGraphics;
+$.NSGraphicsContext.restoreGraphicsState;
 var png = rep.representationUsingTypeProperties($.NSBitmapImageFileTypePNG, $.NSMutableDictionary.alloc.init);
 png.writeToFileAtomically($.NSString.alloc.initWithUTF8String(out), true);
 JS
@@ -119,8 +113,9 @@ ffmpeg -y -loglevel error \
   -f lavfi -i "color=c=0x0d1a4d:s=${CW}x${CH}:r=${FPS}:d=2" \
   -i "$WORK/title_main.png" -i "$WORK/title_sub.png" \
   -filter_complex "\
-    [0:v][1:v]overlay=(W-w)/2:(H-h)/2-70[a];\
-    [a][2:v]overlay=(W-w)/2:(H-h)/2+140,format=yuv420p[v]" \
+    [1:v]scale=${CW}:-1[t1];[2:v]scale=${CW}:-1[t2];\
+    [0:v][t1]overlay=(W-w)/2:(H-h)/2-70[a];\
+    [a][t2]overlay=(W-w)/2:(H-h)/2+140,format=yuv420p[v]" \
   -map "[v]" -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p "$WORK/title.mp4"
 
 # Closing card (2.5s): specs line + repo URL.
@@ -129,8 +124,9 @@ ffmpeg -y -loglevel error \
   -f lavfi -i "color=c=0x0d1a4d:s=${CW}x${CH}:r=${FPS}:d=2.5" \
   -i "$WORK/close_specs.png" -i "$WORK/close_repo.png" \
   -filter_complex "\
-    [0:v][1:v]overlay=(W-w)/2:(H-h)/2-40[a];\
-    [a][2:v]overlay=(W-w)/2:(H-h)/2+90,format=yuv420p[v]" \
+    [1:v]scale=${CW}:-1[c1];[2:v]scale=${CW}:-1[c2];\
+    [0:v][c1]overlay=(W-w)/2:(H-h)/2-40[a];\
+    [a][c2]overlay=(W-w)/2:(H-h)/2+90,format=yuv420p[v]" \
   -map "[v]" -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p "$WORK/close.mp4"
 
 # --- Segments: scale a take to the canvas, add a lower-third caption ----------
@@ -144,7 +140,7 @@ build_segment() {
       [0:v]scale=${CW}:${CH}:force_original_aspect_ratio=decrease,\
 pad=${CW}:${CH}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${FPS}[base];\
       [base]drawbox=x=0:y=ih-200:w=iw:h=140:color=black@0.55:t=fill[bar];\
-      [bar][1:v]overlay=(W-w)/2:H-190,format=yuv420p[v]" \
+      [1:v]scale=${CW}:-1[cap];[bar][cap]overlay=(W-w)/2:H-190,format=yuv420p[v]" \
     -map "[v]" -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p "$out"
 }
 

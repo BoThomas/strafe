@@ -237,3 +237,31 @@ report:
   `IOPlatformSerialNumber`, `IOPlatformUUID`, or the hostname.
 - Still: **eyeball every take before publishing.** `record.sh` prints that
   reminder too.
+
+## Results (2026-08-29, MacBook Pro · Apple M3 Pro · 18 GB · macOS 26.3)
+
+20 trials per mode, 0 timeouts, alternating direction, ground-truth space
+detection. Both modes triggered by the identical synthetic gesture family,
+differing only in velocity profile.
+
+| metric (median) | native swipe | with strafe |
+|---|---|---|
+| first event delivery | 168.5 ms | 49.6 ms |
+| transition complete (logical) | 164.4 ms | 42.3 ms |
+
+Raw CSVs: `results/native-20.csv`, `results/strafe-20.csv`.
+
+### What these numbers do and don't capture
+
+All programmatic signals we found (event delivery, `activeSpaceDidChange`,
+source-window-offscreen) fire at the **logical** switch. Frame analysis of a
+240fps screen recording puts the visible slide at ~110–125 ms of that window,
+ending within a frame or two of the logical signals. Two honest caveats:
+
+1. Synthetic probe clicks bypass the input hold WindowServer applies to real
+   HID input mid-transition, so native times are a lower bound on human
+   experience — a real finger also spends its own travel time on the gesture
+   before macOS even starts.
+2. The native trigger uses one fixed release velocity. Real swipes vary, and
+   macOS scales the transition duration with release velocity — slow releases
+   take visibly longer. strafe removes that variable entirely.

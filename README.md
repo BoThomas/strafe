@@ -10,6 +10,16 @@ interactive immediately.
 It runs as a menu-bar accessory (no Dock icon), works with your normal 3-finger
 swipe, and adds keyboard shortcuts and a small CLI.
 
+## See it
+
+![Side-by-side: native macOS switching vs strafe](docs/media/demo-loop.gif)
+
+Same machine, same synthetic swipe — the only difference is velocity profile.
+Measured medians: **~160 ms** to interactive natively vs **~42 ms** with strafe
+(MacBook Pro, Apple M3 Pro, macOS 26.3 — [full video](docs/media/demo.mp4)).
+The numbers are reproducible with the [bench harness](bench/), which documents
+the methodology and its caveats honestly.
+
 ## Have your agent set it up
 
 Copy this into Claude Code (or any coding agent) and it will handle everything
