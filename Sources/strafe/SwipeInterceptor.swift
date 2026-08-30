@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import CSnapSpace
+import CStrafe
 
 /// Owns the `CGEventTap` that detects the user's real 3-finger horizontal
 /// space-swipe, suppresses it, and fires the engine's instant switch instead
@@ -45,8 +45,8 @@ final class SwipeInterceptor: @unchecked Sendable {
         // Gesture (1<<29) | dock-control (1<<30) only, sourced from C so the raw
         // private type bits are single-sourced with the synthesizer. Key events
         // are intentionally excluded (they were never acted on and only added
-        // per-keystroke latency) — see the determination comment in CSnapSpace.c.
-        let mask = CGEventMask(snapspace_tap_event_mask())
+        // per-keystroke latency) — see the determination comment in CStrafe.c.
+        let mask = CGEventMask(strafe_tap_event_mask())
 
         // Trampoline `self` through the tap's userInfo pointer.
         let userInfo = Unmanaged.passUnretained(self).toOpaque()
@@ -132,9 +132,9 @@ final class SwipeInterceptor: @unchecked Sendable {
 
         // Read the private CGSEventType (field 55). We only care about the
         // dock-control swipe and its companion gesture events.
-        let cgsType = snapspace_event_cgs_type(event)
-        let dockControl = snapspace_cgs_event_dock_control()
-        let gesture = snapspace_cgs_event_gesture()
+        let cgsType = strafe_event_cgs_type(event)
+        let dockControl = strafe_cgs_event_dock_control()
+        let gesture = strafe_cgs_event_gesture()
 
         guard cgsType == dockControl || cgsType == gesture else {
             return passthrough
@@ -143,7 +143,7 @@ final class SwipeInterceptor: @unchecked Sendable {
         // SPEC §2.2 step 3: real HID gestures originate in the kernel with
         // source pid == 0. Synthetic events (ours + any other app's) have a
         // nonzero pid — pass them through so we don't re-trap our own posts.
-        if snapspace_event_source_pid(event) != 0 {
+        if strafe_event_source_pid(event) != 0 {
             return passthrough
         }
 
@@ -155,26 +155,26 @@ final class SwipeInterceptor: @unchecked Sendable {
         // From here: a real (pid 0) dock-control event.
         // SPEC §2.2 step 4: require a horizontal dock swipe; anything else
         // (vertical / App Exposé) passes through untouched.
-        guard snapspace_event_hid_type(event) == snapspace_iohid_event_dock_swipe(),
-              snapspace_event_swipe_motion(event) == snapspace_gesture_motion_horizontal()
+        guard strafe_event_hid_type(event) == strafe_iohid_event_dock_swipe(),
+              strafe_event_swipe_motion(event) == strafe_gesture_motion_horizontal()
         else {
             return passthrough
         }
 
         // SPEC §2.3 state machine, driven by the gesture phase (field 132).
-        let phase = snapspace_event_gesture_phase(event)
+        let phase = strafe_event_gesture_phase(event)
 
-        if phase == snapspace_gesture_phase_began() {
+        if phase == strafe_gesture_phase_began() {
             // Let real gestures through while an overlay (Exposé) is up (SPEC §2.5).
-            if snapspace_is_expose_active() { return passthrough }
+            if strafe_is_expose_active() { return passthrough }
             swipeTracking = true
             swipeFired = false
             return nil  // SUPPRESS the real 'began'
 
-        } else if phase == snapspace_gesture_phase_changed() {
+        } else if phase == strafe_gesture_phase_changed() {
             guard swipeTracking else { return passthrough }
             if !swipeFired {
-                let progress = snapspace_event_swipe_progress(event)
+                let progress = strafe_event_swipe_progress(event)
                 if progress != 0.0 {
                     // Direction is the sign of progress; fire as soon as known.
                     let dir: SwitchDirection = progress > 0 ? .right : .left
@@ -184,11 +184,11 @@ final class SwipeInterceptor: @unchecked Sendable {
             }
             return nil  // SUPPRESS
 
-        } else if phase == snapspace_gesture_phase_ended() {
+        } else if phase == strafe_gesture_phase_ended() {
             guard swipeTracking else { return passthrough }
             if !swipeFired {
                 // Fallback: derive direction from the end velocity's sign.
-                let velocity = snapspace_event_swipe_velocity_x(event)
+                let velocity = strafe_event_swipe_velocity_x(event)
                 if velocity != 0.0 {
                     let dir: SwitchDirection = velocity > 0 ? .right : .left
                     swipeFired = true
@@ -199,7 +199,7 @@ final class SwipeInterceptor: @unchecked Sendable {
             swipeFired = false
             return nil  // SUPPRESS
 
-        } else if phase == snapspace_gesture_phase_cancelled() {
+        } else if phase == strafe_gesture_phase_cancelled() {
             swipeTracking = false
             swipeFired = false
             return nil

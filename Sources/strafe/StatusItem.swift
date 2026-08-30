@@ -23,7 +23,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             button.image = NSImage(
                 systemSymbolName: "rectangle.on.rectangle",
-                accessibilityDescription: "SnapSpace"
+                accessibilityDescription: "strafe"
             )
             button.image?.isTemplate = true
         }
@@ -37,7 +37,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(toggleItem)
         menu.addItem(accessibilityItem)
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit SnapSpace", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit strafe", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 

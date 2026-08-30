@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build a signed SnapSpace.app bundle from the SwiftPM executable.
+# Build a signed strafe.app bundle from the SwiftPM executable.
 set -euo pipefail
 
 # Resolve repo root regardless of where the script is invoked from.
@@ -7,9 +7,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
-APP_NAME="SnapSpace"
-BUNDLE_ID="dev.riley.snapspace"
-BIN_NAME="snapspace"
+APP_NAME="strafe"
+BUNDLE_ID="com.rileycx.strafe"
+BIN_NAME="strafe"
 
 BUILD_DIR="$ROOT_DIR/build"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"

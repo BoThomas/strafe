@@ -1,10 +1,11 @@
-// CSnapSpace.c — implementation of the synthetic dock-swipe mechanism.
+// CStrafe.c — implementation of the synthetic dock-swipe mechanism.
 //
-// Reverse-engineered from jurplel/InstantSpaceSwitcher (MIT). Every magic
-// number here is documented in docs/SPEC.md §1–2. Treat the field indices and
-// event-type values as version-fragile (SPEC §7).
+// An independent reimplementation of the technique from
+// jurplel/InstantSpaceSwitcher (MIT). Every magic number here is documented in
+// docs/SPEC.md §1–2. Treat the field indices and event-type values as
+// version-fragile (SPEC §7).
 
-#include "CSnapSpace.h"
+#include "CStrafe.h"
 
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreGraphics/CGEventTypes.h>
@@ -53,15 +54,15 @@ extern CFStringRef CGSCopyActiveMenuBarDisplayIdentifier(CGSConnectionID connect
 extern CGSConnectionID CGSMainConnectionID(void) __attribute__((weak_import));
 extern CGSSpaceID  CGSGetActiveSpace(CGSConnectionID connection) __attribute__((weak_import));
 
-bool snapspace_cgs_available(void) {
+bool strafe_cgs_available(void) {
     return (&CGSMainConnectionID != NULL) &&
            (&CGSGetActiveSpace != NULL) &&
            (&CGSCopyManagedDisplaySpaces != NULL);
 }
 
 // --- Synthesis (SPEC §1.5) ------------------------------------------------
-static bool post_dock_swipe(CGSGesturePhase phase, SnapSpaceDirection direction, double velocity) {
-    const bool isRight = (direction == SnapSpaceDirectionRight);
+static bool post_dock_swipe(CGSGesturePhase phase, StrafeDirection direction, double velocity) {
+    const bool isRight = (direction == StrafeDirectionRight);
     // Empirically, ±FLT_TRUE_MIN used in this way makes switching instant.
     const double progress = isRight ? (double)FLT_TRUE_MIN : -(double)FLT_TRUE_MIN;
 
@@ -82,7 +83,7 @@ static bool post_dock_swipe(CGSGesturePhase phase, SnapSpaceDirection direction,
     return true;
 }
 
-bool snapspace_post_switch_gesture(SnapSpaceDirection direction, double velocity) {
+bool strafe_post_switch_gesture(StrafeDirection direction, double velocity) {
     // Send three gesture events--began, changed, and ended.
     // If we only send two then mission control doesn't work.
     return post_dock_swipe(kCGSGesturePhaseBegan,   direction, velocity)
@@ -110,9 +111,9 @@ static CFStringRef copy_cursor_display_identifier(void) {
     return str; // caller releases
 }
 
-bool snapspace_get_space_info(SnapSpaceInfo *outInfo) {
+bool strafe_get_space_info(StrafeInfo *outInfo) {
     if (!outInfo) { return false; }
-    if (!snapspace_cgs_available()) { return false; }
+    if (!strafe_cgs_available()) { return false; }
 
     memset(outInfo, 0, sizeof(*outInfo));
 
@@ -202,37 +203,37 @@ bool snapspace_get_space_info(SnapSpaceInfo *outInfo) {
 }
 
 // --- Event inspection helpers (SPEC §2.2, §2.3) ---------------------------
-int64_t snapspace_event_cgs_type(CGEventRef event) {
+int64_t strafe_event_cgs_type(CGEventRef event) {
     return CGEventGetIntegerValueField(event, kCGSEventTypeField);
 }
-int64_t snapspace_event_hid_type(CGEventRef event) {
+int64_t strafe_event_hid_type(CGEventRef event) {
     return CGEventGetIntegerValueField(event, kCGEventGestureHIDType);
 }
-int64_t snapspace_event_swipe_motion(CGEventRef event) {
+int64_t strafe_event_swipe_motion(CGEventRef event) {
     return CGEventGetIntegerValueField(event, kCGEventGestureSwipeMotion);
 }
-int64_t snapspace_event_gesture_phase(CGEventRef event) {
+int64_t strafe_event_gesture_phase(CGEventRef event) {
     return CGEventGetIntegerValueField(event, kCGEventGesturePhase);
 }
-double snapspace_event_swipe_progress(CGEventRef event) {
+double strafe_event_swipe_progress(CGEventRef event) {
     return CGEventGetDoubleValueField(event, kCGEventGestureSwipeProgress);
 }
-double snapspace_event_swipe_velocity_x(CGEventRef event) {
+double strafe_event_swipe_velocity_x(CGEventRef event) {
     return CGEventGetDoubleValueField(event, kCGEventGestureSwipeVelocityX);
 }
-int64_t snapspace_event_source_pid(CGEventRef event) {
+int64_t strafe_event_source_pid(CGEventRef event) {
     return CGEventGetIntegerValueField(event, kCGEventSourceUnixProcessID);
 }
 
 // --- Constants (SPEC §1.3) ------------------------------------------------
-int64_t snapspace_cgs_event_dock_control(void)    { return kCGSEventDockControl; }
-int64_t snapspace_cgs_event_gesture(void)         { return kCGSEventGesture; }
-int64_t snapspace_iohid_event_dock_swipe(void)    { return kIOHIDEventTypeDockSwipe; }
-int64_t snapspace_gesture_motion_horizontal(void) { return kCGGestureMotionHorizontal; }
-int64_t snapspace_gesture_phase_began(void)       { return kCGSGesturePhaseBegan; }
-int64_t snapspace_gesture_phase_changed(void)     { return kCGSGesturePhaseChanged; }
-int64_t snapspace_gesture_phase_ended(void)       { return kCGSGesturePhaseEnded; }
-int64_t snapspace_gesture_phase_cancelled(void)   { return kCGSGesturePhaseCancelled; }
+int64_t strafe_cgs_event_dock_control(void)    { return kCGSEventDockControl; }
+int64_t strafe_cgs_event_gesture(void)         { return kCGSEventGesture; }
+int64_t strafe_iohid_event_dock_swipe(void)    { return kIOHIDEventTypeDockSwipe; }
+int64_t strafe_gesture_motion_horizontal(void) { return kCGGestureMotionHorizontal; }
+int64_t strafe_gesture_phase_began(void)       { return kCGSGesturePhaseBegan; }
+int64_t strafe_gesture_phase_changed(void)     { return kCGSGesturePhaseChanged; }
+int64_t strafe_gesture_phase_ended(void)       { return kCGSGesturePhaseEnded; }
+int64_t strafe_gesture_phase_cancelled(void)   { return kCGSGesturePhaseCancelled; }
 
 // Raw tap mask: (1<<29) gesture | (1<<30) dock-control ONLY.
 //
@@ -256,13 +257,13 @@ int64_t snapspace_gesture_phase_cancelled(void)   { return kCGSGesturePhaseCance
 // latency and a wakeup per key. With keys removed the active tap wakes only on
 // real space-swipe gestures, dropping idle keyboard wakeups to zero. Behavior is
 // unchanged because the removed events were never acted upon.
-uint64_t snapspace_tap_event_mask(void) {
+uint64_t strafe_tap_event_mask(void) {
     return (1ULL << kCGSEventGesture) | (1ULL << kCGSEventDockControl);
 }
 
 // --- Overlay / Exposé detection (SPEC §2.5) -------------------------------
 // Heuristic: count Dock-owned windows at layers 18 and 20.
-bool snapspace_is_expose_active(void) {
+bool strafe_is_expose_active(void) {
     CFArrayRef windows = CGWindowListCopyWindowInfo(
         kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
     if (!windows) { return false; }

@@ -1,13 +1,13 @@
 import Foundation
-import CSnapSpace
+import CStrafe
 
 /// The direction to move between macOS Spaces.
 enum SwitchDirection {
     case left
     case right
 
-    var cDirection: SnapSpaceDirection {
-        self == .left ? SnapSpaceDirectionLeft : SnapSpaceDirectionRight
+    var cDirection: StrafeDirection {
+        self == .left ? StrafeDirectionLeft : StrafeDirectionRight
     }
 }
 
@@ -47,7 +47,7 @@ struct StubSwitchEngine: SwitchEngine {
 /// Concurrency: `switchSpace` may be called from the main actor (hotkeys, CLI)
 /// or from the event-tap run loop (the interceptor). All mutable prediction
 /// state is guarded by an `NSLock`, so the type is safe to share across those
-/// contexts; the actual CGEvent posting (`snapspace_post_switch_gesture`) is a
+/// contexts; the actual CGEvent posting (`strafe_post_switch_gesture`) is a
 /// stateless C call.
 final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
     /// Gesture velocity magnitude. 2000.0 is the "Instant" preset — the only
@@ -67,13 +67,13 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
     }
 
     /// Whether the private CGS topology symbols resolved (SPEC §1.1, §6).
-    var cgsAvailable: Bool { snapspace_cgs_available() }
+    var cgsAvailable: Bool { strafe_cgs_available() }
 
     func switchSpace(_ direction: SwitchDirection) throws {
         // Read live topology once. If CGS symbols are unavailable we can't do
         // bounds/prediction bookkeeping — fall back to posting unconditionally.
-        var info = SnapSpaceInfo()
-        let haveInfo = snapspace_get_space_info(&info)
+        var info = StrafeInfo()
+        let haveInfo = strafe_get_space_info(&info)
 
         if haveInfo {
             let displayID = withUnsafeBytes(of: info.displayID) { raw -> String in
@@ -94,7 +94,7 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
             let target: UInt32 = direction == .left ? current - 1 : current + 1
             lock.unlock()
 
-            guard snapspace_post_switch_gesture(direction.cDirection, velocity) else {
+            guard strafe_post_switch_gesture(direction.cDirection, velocity) else {
                 throw SwitchEngineError.postFailed
             }
 
@@ -103,7 +103,7 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
             predictions[displayID] = target
             lock.unlock()
         } else {
-            guard snapspace_post_switch_gesture(direction.cDirection, velocity) else {
+            guard strafe_post_switch_gesture(direction.cDirection, velocity) else {
                 throw SwitchEngineError.postFailed
             }
         }

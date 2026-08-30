@@ -2,14 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "snapspace",
+    name: "strafe",
     platforms: [
         .macOS(.v15)
     ],
     targets: [
         .target(
-            name: "CSnapSpace",
-            path: "Sources/CSnapSpace",
+            name: "CStrafe",
+            path: "Sources/CStrafe",
             publicHeadersPath: "include",
             linkerSettings: [
                 .linkedFramework("ApplicationServices"),
@@ -19,9 +19,9 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "snapspace",
-            dependencies: ["CSnapSpace"],
-            path: "Sources/snapspace"
+            name: "strafe",
+            dependencies: ["CStrafe"],
+            path: "Sources/strafe"
         )
     ]
 )

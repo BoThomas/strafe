@@ -23,7 +23,7 @@ func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
     switch args.first {
     case "switch":
         guard args.count >= 2 else {
-            FileHandle.standardError.write(Data("usage: snapspace switch left|right\n".utf8))
+            FileHandle.standardError.write(Data("usage: strafe switch left|right\n".utf8))
             return 2
         }
         let direction: SwitchDirection
@@ -50,12 +50,12 @@ func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
 
     default:
         FileHandle.standardError.write(Data("""
-        snapspace — near-instant macOS Spaces switching
+        strafe — near-instant macOS Spaces switching
 
         usage:
-          snapspace                     start the menu-bar app
-          snapspace switch left|right   switch space once and exit
-          snapspace status              print accessibility / tap status
+          strafe                      start the menu-bar app
+          strafe switch left|right    switch space once and exit
+          strafe status               print accessibility / tap status
 
         """.utf8))
         return 2
