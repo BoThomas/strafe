@@ -14,11 +14,29 @@ swipe, and adds keyboard shortcuts and a small CLI.
 
 ![Side-by-side: native macOS switching vs strafe](docs/media/demo-loop.gif)
 
-Same machine, same synthetic swipe — the only difference is velocity profile.
-Measured medians: **~160 ms** to interactive natively vs **~42 ms** with strafe
-(MacBook Pro, Apple M3 Pro, macOS 26.3 — [full video](docs/media/demo.mp4)).
-The numbers are reproducible with the [bench harness](bench/), which documents
-the methodology and its caveats honestly.
+## Time to interactivity
+
+The number that matters: after you switch Spaces, how long until the landed
+window actually accepts your input. macOS queues input until its transition
+finishes; strafe collapses the transition, so the queue never builds.
+
+Measured on a MacBook Pro (Apple M3 Pro, 18 GB, macOS 26.3), 20 trials per
+mode, zero timeouts ([full video](docs/media/demo.mp4)):
+
+| time to interactivity (median) | native swipe | with strafe |
+|---|---|---|
+| first event delivered to the landed window | 168.5 ms | 49.6 ms |
+| transition complete (input unlocks) | 164.4 ms | 42.3 ms |
+
+Native ranged 149–185 ms across trials; strafe ranged 30–79 ms — strafe's
+slowest switch beat native's fastest by nearly half. Two honest caveats: the
+native figures are a *lower bound* on what a human feels (the clock starts at
+gesture start, and a real swipe adds your own finger-travel time on top), and
+native duration grows with gentler swipe velocity — a variable strafe
+eliminates entirely. Both modes are measured identically by the same harness.
+
+Reproduce it yourself with the [bench harness](bench/), which documents the
+full methodology and its caveats.
 
 ## Have your agent set it up
 
