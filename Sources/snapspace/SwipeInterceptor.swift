@@ -111,6 +111,12 @@ final class SwipeInterceptor: @unchecked Sendable {
     // MARK: - Callback (runs on the main run loop)
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        // HOT PATH — runs for every gesture/dock-control event the tap sees.
+        // Invariant: the reject path (any non-candidate event) must do zero
+        // allocations, no Swift string work, no logging, and acquire no lock.
+        // `Unmanaged.passUnretained` only wraps the pointer (no ARC retain). The
+        // engine lock is touched only inside `engine.switchSpace`, i.e. only once
+        // a real swipe actually fires — never on pass-through. Keep it that way.
         let passthrough = Unmanaged.passUnretained(event)
 
         // SPEC §2.3 / §7.5: the system auto-disables the tap on timeout or
