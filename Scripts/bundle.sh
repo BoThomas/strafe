@@ -16,10 +16,15 @@ APP_DIR="$BUILD_DIR/$APP_NAME.app"
 MACOS_DIR="$APP_DIR/Contents/MacOS"
 YEAR="$(date +%Y)"
 
-echo "==> Building release (arm64)…"
-swift build -c release --arch arm64
+# Release build flags (shipped binary only; the plain `swift build` dev path is
+# unchanged). -Osize optimizes for size, -dead_strip drops unreachable code, and
+# a post-link `strip` removes debug/local symbols — together ~30% smaller binary.
+RELEASE_FLAGS=(-c release --arch arm64 -Xswiftc -Osize -Xlinker -dead_strip)
 
-BIN_PATH="$(swift build -c release --arch arm64 --show-bin-path)/$BIN_NAME"
+echo "==> Building release (arm64, -Osize, dead-strip)…"
+swift build "${RELEASE_FLAGS[@]}"
+
+BIN_PATH="$(swift build "${RELEASE_FLAGS[@]}" --show-bin-path)/$BIN_NAME"
 if [[ ! -x "$BIN_PATH" ]]; then
   echo "error: built binary not found at $BIN_PATH" >&2
   exit 1
@@ -29,6 +34,15 @@ echo "==> Assembling $APP_NAME.app…"
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
 cp "$BIN_PATH" "$MACOS_DIR/$BIN_NAME"
+
+# Strip symbols from the SHIPPED copy (not the .build artifact) BEFORE signing —
+# stripping mutates the binary and would invalidate a prior signature. -rSTx
+# removes debug, local, and section symbols while keeping it a valid Mach-O.
+echo "==> Stripping symbols from shipped binary…"
+BEFORE_BYTES="$(stat -f%z "$MACOS_DIR/$BIN_NAME")"
+strip -rSTx "$MACOS_DIR/$BIN_NAME"
+AFTER_BYTES="$(stat -f%z "$MACOS_DIR/$BIN_NAME")"
+echo "    binary size: ${BEFORE_BYTES} -> ${AFTER_BYTES} bytes"
 
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
