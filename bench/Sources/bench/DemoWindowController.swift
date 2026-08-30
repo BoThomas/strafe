@@ -80,6 +80,11 @@ final class DemoWindowController {
         }
     }
 
+    /// WindowServer window ID for a demo space's window, for occlusion polling.
+    func windowID(for space: DemoSpace) -> CGWindowID? {
+        windows[space].map { CGWindowID($0.windowNumber) }
+    }
+
     /// Center of the main screen's *content* area (below the menu bar), in the
     /// global display coordinate space CGEvent uses (origin top-left, y down).
     /// This is where the measurement harness posts probe clicks.

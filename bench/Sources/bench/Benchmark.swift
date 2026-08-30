@@ -16,7 +16,16 @@ struct TrialResult: Sendable {
     let direction: SwitchDirection
     /// Time-to-interactivity: first destination click delivery − T0, in ms.
     /// `nil` on timeout (recorded as a failure, excluded from stats).
+    /// CAVEAT: synthetic probes bypass the input hold WindowServer applies to
+    /// real HID input during a transition, so for native this is a lower bound
+    /// on what a human experiences — see `transitionMs` for the human-felt end.
     let interactivityMs: Double?
+    /// Transition-complete time: source window drops offscreen − T0, in ms.
+    /// During a Space slide BOTH spaces' windows are composited on screen; the
+    /// source window leaving the screen marks the animation's end — which is
+    /// also when macOS starts delivering REAL (human) input to the new space.
+    /// This is the human time-to-interactivity proxy.
+    let transitionMs: Double?
     /// activeSpaceDidChange − T0, in ms (reference only). `nil` if not observed.
     let spaceChangeMs: Double?
     /// How many probe clicks we posted before the first hit (or timeout).
@@ -178,14 +187,27 @@ final class Benchmark {
         // (see `pumpEvents` — a bare RunLoop would not deliver it, Bug 1). The
         // measured Δ is still first-destination-hit − T0 exactly as documented.
         let point = controller.destinationClickPointCG
+        let sourceWindowID = controller.windowID(for: here)
         var clicksPosted = 0
+        var transitionEnd: CFTimeInterval?
         let probeCadence = probeIntervalMs / 1000.0
         let wallDeadline = Date().addingTimeInterval(probeTimeout)
 
-        while recorder.firstHit == nil {
+        // Run until BOTH signals are captured (or timeout): first probe delivery
+        // (event availability) and source-window-offscreen (transition complete —
+        // the human input-unlock proxy). Probes stop once the first hit lands;
+        // the offscreen poll continues, since for native the animation outlives
+        // synthetic event delivery (synthetic probes bypass the HID input hold).
+        while recorder.firstHit == nil || transitionEnd == nil {
             if Date() >= wallDeadline { break }
-            EventPosting.postProbeClick(at: point, source: clickSource)
-            clicksPosted += 1
+            if recorder.firstHit == nil {
+                EventPosting.postProbeClick(at: point, source: clickSource)
+                clicksPosted += 1
+            }
+            if transitionEnd == nil, let id = sourceWindowID,
+               !Benchmark.isWindowOnscreen(id) {
+                transitionEnd = CACurrentMediaTime()
+            }
             // Pump events for the cadence window so the click can be delivered to
             // our window and the local monitor can stamp it. Cap the pump at the
             // overall timeout so a stuck trial can't overrun.
@@ -195,12 +217,14 @@ final class Benchmark {
 
         let firstHit = recorder.firstHit
         let interactivityMs = firstHit.map { ($0 - t0) * 1000.0 }
+        let transitionMs = transitionEnd.map { ($0 - t0) * 1000.0 }
         let spaceChangeMs = spaceChangeStamp().map { ($0 - t0) * 1000.0 }
 
         let result = TrialResult(
             index: index,
             direction: direction,
             interactivityMs: interactivityMs,
+            transitionMs: transitionMs,
             spaceChangeMs: spaceChangeMs,
             clicksPosted: clicksPosted,
             destinationHits: recorder.destinationHitCount,
@@ -210,18 +234,29 @@ final class Benchmark {
         return result
     }
 
+    /// Whether the WindowServer still composites this window on screen. During a
+    /// Space transition both spaces' windows are on screen; the source window
+    /// dropping offscreen marks the animation's end.
+    private static func isWindowOnscreen(_ id: CGWindowID) -> Bool {
+        guard let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id)
+                as? [[String: Any]],
+              let info = list.first else { return false }
+        return (info[kCGWindowIsOnscreen as String] as? Bool) ?? false
+    }
+
     // MARK: - Output
 
     private func printTable(_ results: [TrialResult]) {
         print("")
-        print("trial  dir    interactive(ms)  spaceChange(ms)  clicksPosted  destHits  srcHits")
+        print("trial  dir    interactive(ms)  transition(ms)  spaceChange(ms)  clicksPosted  destHits  srcHits")
         for r in results {
             let inter = r.interactivityMs.map { String(format: "%.1f", $0) } ?? "TIMEOUT"
+            let trans = r.transitionMs.map { String(format: "%.1f", $0) } ?? "-"
             let space = r.spaceChangeMs.map { String(format: "%.1f", $0) } ?? "-"
             let dir = r.direction == .right ? "right" : "left "
             print(String(
-                format: "%4d   %@  %15@  %15@  %12d  %8d  %7d",
-                r.index, dir, inter as NSString, space as NSString,
+                format: "%4d   %@  %15@  %14@  %15@  %12d  %8d  %7d",
+                r.index, dir, inter as NSString, trans as NSString, space as NSString,
                 r.clicksPosted, r.destinationHits, r.sourceHits
             ))
         }
@@ -260,12 +295,13 @@ final class Benchmark {
         for line in machine.block.split(separator: "\n") {
             lines.append("# \(line)")
         }
-        lines.append("trial,direction,interactive_ms,space_change_ms,clicks_posted,dest_hits,src_hits,timed_out")
+        lines.append("trial,direction,interactive_ms,transition_ms,space_change_ms,clicks_posted,dest_hits,src_hits,timed_out")
         for r in results {
             let inter = r.interactivityMs.map { String(format: "%.3f", $0) } ?? ""
+            let trans = r.transitionMs.map { String(format: "%.3f", $0) } ?? ""
             let space = r.spaceChangeMs.map { String(format: "%.3f", $0) } ?? ""
             let dir = r.direction == .right ? "right" : "left"
-            lines.append("\(r.index),\(dir),\(inter),\(space),\(r.clicksPosted),\(r.destinationHits),\(r.sourceHits),\(r.timedOut)")
+            lines.append("\(r.index),\(dir),\(inter),\(trans),\(space),\(r.clicksPosted),\(r.destinationHits),\(r.sourceHits),\(r.timedOut)")
         }
         let text = lines.joined(separator: "\n") + "\n"
         try? text.write(to: url, atomically: true, encoding: .utf8)
@@ -283,6 +319,13 @@ struct Summary: Sendable {
     let valid: Int
     let timeouts: Int
 
+    /// Transition-complete stats (the human input-unlock proxy).
+    let transMedian: Double?
+    let transP90: Double?
+    let transMin: Double?
+    let transMax: Double?
+    let transValid: Int
+
     init(mode: BenchMode, results: [TrialResult]) {
         self.mode = mode
         let values = results.compactMap { $0.interactivityMs }.sorted()
@@ -295,6 +338,16 @@ struct Summary: Sendable {
             p90 = Summary.percentile(values, 0.90)
             min = values.first
             max = values.last
+        }
+        let trans = results.compactMap { $0.transitionMs }.sorted()
+        self.transValid = trans.count
+        if trans.isEmpty {
+            transMedian = nil; transP90 = nil; transMin = nil; transMax = nil
+        } else {
+            transMedian = Summary.percentile(trans, 0.50)
+            transP90 = Summary.percentile(trans, 0.90)
+            transMin = trans.first
+            transMax = trans.last
         }
     }
 
@@ -312,6 +365,7 @@ struct Summary: Sendable {
         func fmt(_ v: Double?) -> String { v.map { String(format: "%.1f", $0) } ?? "n/a" }
         Swift.print("")
         Swift.print("=== \(mode.rawValue) summary (\(valid) valid, \(timeouts) timeout) ===")
-        Swift.print("median=\(fmt(median)) ms  p90=\(fmt(p90)) ms  min=\(fmt(min)) ms  max=\(fmt(max)) ms")
+        Swift.print("event delivery:      median=\(fmt(median)) ms  p90=\(fmt(p90)) ms  min=\(fmt(min)) ms  max=\(fmt(max)) ms")
+        Swift.print("transition complete: median=\(fmt(transMedian)) ms  p90=\(fmt(transP90)) ms  min=\(fmt(transMin)) ms  max=\(fmt(transMax)) ms  (\(transValid) observed — human input unlocks here)")
     }
 }
