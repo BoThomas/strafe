@@ -9,6 +9,10 @@ The whole program is about **1,080 lines** of Swift + C (`wc -l Sources/**`).
 You can build it from source in about 30 seconds (`swift build`) and audit it
 in an afternoon.
 
+**strafe ships no binaries.** It is distributed as source only — the only way
+to run it is to compile the code you can read. There is no prebuilt artifact,
+no download, and no update channel to trust.
+
 ---
 
 ## What strafe can do
@@ -132,7 +136,7 @@ or any other permission.
 ## How to verify
 
 ```bash
-git clone <repo-url> strafe && cd strafe
+git clone https://github.com/rileycx/strafe strafe && cd strafe
 
 # 1. Build from source (~30s). No dependencies to resolve.
 swift build

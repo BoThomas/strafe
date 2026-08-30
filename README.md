@@ -24,10 +24,11 @@ acknowledgment and their copyright notice.
 
 ## Install
 
-### Build from source (recommended)
+strafe is distributed as source only — there is no prebuilt binary to trust.
+You build the code you can read.
 
 ```bash
-git clone <repo-url> strafe && cd strafe
+git clone https://github.com/rileycx/strafe strafe && cd strafe
 ./Scripts/bundle.sh
 ```
 
@@ -42,9 +43,6 @@ The app is about 1,080 lines of Swift and C with no third-party dependencies —
 `swift build` finishes in seconds and you can read the whole thing. See
 [SECURITY.md](SECURITY.md).
 
-### Signed release
-
-Signed and notarized builds are coming via GitHub Releases.
 
 ## Usage
 
