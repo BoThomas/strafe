@@ -40,6 +40,27 @@ func runWindows() -> Never {
     exit(0)
 }
 
+/// Prompt for Accessibility (registers bench in the System Settings list with a
+/// toggle) and block until the user grants it, so `run` can be started before
+/// the grant exists.
+@MainActor
+func awaitAccessibility() {
+    let opts = ["AXTrustedCheckOptionPrompt" as CFString: true] as CFDictionary
+    if AXIsProcessTrustedWithOptions(opts) { return }
+    print("bench: waiting for Accessibility grant — flip the 'bench' toggle in the")
+    print("System Settings pane that just opened (up to 3 minutes)…")
+    for _ in 0..<180 {
+        Thread.sleep(forTimeInterval: 1.0)
+        if AXIsProcessTrusted() {
+            print("bench: Accessibility granted, starting.")
+            return
+        }
+    }
+    FileHandle.standardError.write(Data(
+        "bench: no Accessibility grant after 3 minutes; giving up.\n".utf8))
+    exit(3)
+}
+
 @MainActor
 func runMeasurement(_ args: [String]) -> Never {
     guard let modeRaw = parseFlag(args, "--mode"), let mode = BenchMode(rawValue: modeRaw) else {
@@ -51,6 +72,7 @@ func runMeasurement(_ args: [String]) -> Never {
 
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
+    awaitAccessibility()
 
     let machine = MachineInfo.current()
     print(machine.block)
