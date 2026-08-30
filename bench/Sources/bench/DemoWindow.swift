@@ -59,6 +59,12 @@ final class DemoContentView: NSView {
 
     override var isFlipped: Bool { false }
 
+    // The demo window is a floating, borderless, non-key window. Without this a
+    // click that lands on it while it is not key would be swallowed as an
+    // activation click and never dispatched as a mouseDown, so the local monitor
+    // (HitRecorder) would never see the probe. Accept the first click directly.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     private func setupLayers() {
         guard let root = layer else { return }
         root.masksToBounds = true

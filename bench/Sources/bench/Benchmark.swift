@@ -35,6 +35,39 @@ final class SpaceChangeStamp {
     var value: CFTimeInterval?
 }
 
+/// Pump the AppKit event loop until `deadline`, dispatching every queued event
+/// via `NSApp.sendEvent(_:)`.
+///
+/// WHY THIS EXISTS (Bug 1): the trial engine runs on the main thread while
+/// `NSApplication.run()` is blocked one frame up the stack. A bare
+/// `RunLoop.run(until:)` services run-loop input sources and timers, but it does
+/// NOT run NSApplication's `nextEventMatchingMask:` + `sendEvent:` cycle — and
+/// that cycle is the ONLY thing that delivers mouse events to
+/// `addLocalMonitorForEvents` monitors (our HitRecorder) and to window
+/// first-responders. So under the old code the harness posted probe clicks that
+/// piled up in the window-server queue and were never dispatched, giving
+/// destHits=0 / TIMEOUT every trial. Draining with `nextEventMatchingMask` here
+/// keeps AppKit event delivery alive during settle/probe waits.
+///
+/// `.default` run-loop mode is used (not `.eventTracking`) so main-queue blocks —
+/// including the `activeSpaceDidChange` observer posted to `.main` — also run.
+@MainActor
+func pumpEvents(until deadline: Date) {
+    let app = NSApplication.shared
+    while true {
+        let now = Date()
+        if now >= deadline { break }
+        // Block up to the remaining interval waiting for the next event; return
+        // promptly when one arrives so probe clicks are delivered with minimal
+        // added latency. `dequeue: true` + `sendEvent` is what actually fires
+        // local monitors and routes clicks to the demo windows.
+        guard let event = app.nextEvent(
+            matching: .any, until: deadline, inMode: .default, dequeue: true
+        ) else { break }
+        app.sendEvent(event)
+    }
+}
+
 /// Runs the trial loop for one mode and emits the table + CSV + summary.
 @MainActor
 final class Benchmark {
@@ -92,8 +125,10 @@ final class Benchmark {
                 resetStamp: { stamp.value = nil }
             )
             results.append(result)
-            // Settle so the next trial starts from a quiesced state.
-            RunLoop.current.run(until: Date().addingTimeInterval(settleBetweenTrials))
+            // Settle so the next trial starts from a quiesced state. Pump AppKit
+            // events (not a bare RunLoop) so any late clicks / space-change
+            // notifications still drain instead of piling up for the next trial.
+            pumpEvents(until: Date().addingTimeInterval(settleBetweenTrials))
         }
 
         printTable(results)
@@ -125,22 +160,25 @@ final class Benchmark {
             StrafeSwitch.perform(direction)
         }
 
-        // Immediately begin probing the destination screen center. We drive the
-        // probe from the main run loop so click delivery (also main) can be
-        // observed between posts.
+        // Immediately begin probing the destination screen center. We post a
+        // probe click, then PUMP APPKIT EVENTS for the 4 ms cadence window so the
+        // click is actually dispatched to the destination window's local monitor
+        // (see `pumpEvents` — a bare RunLoop would not deliver it, Bug 1). The
+        // measured Δ is still first-destination-hit − T0 exactly as documented.
         let point = controller.destinationClickPointCG
         var clicksPosted = 0
-        let deadline = t0 + probeTimeout
+        let probeCadence = probeIntervalMs / 1000.0
+        let wallDeadline = Date().addingTimeInterval(probeTimeout)
 
         while recorder.firstHit == nil {
-            let now = CACurrentMediaTime()
-            if now >= deadline { break }
+            if Date() >= wallDeadline { break }
             EventPosting.postProbeClick(at: point, source: clickSource)
             clicksPosted += 1
-            // Pump the run loop briefly so the click can be delivered to our
-            // window and the local monitor can stamp it, then wait out the
-            // 4 ms cadence.
-            RunLoop.current.run(until: Date().addingTimeInterval(probeIntervalMs / 1000.0))
+            // Pump events for the cadence window so the click can be delivered to
+            // our window and the local monitor can stamp it. Cap the pump at the
+            // overall timeout so a stuck trial can't overrun.
+            let pumpUntil = min(Date().addingTimeInterval(probeCadence), wallDeadline)
+            pumpEvents(until: pumpUntil)
         }
 
         let firstHit = recorder.firstHit
@@ -177,9 +215,30 @@ final class Benchmark {
         }
     }
 
-    private func writeCSV(_ results: [TrialResult], machine: MachineInfo) {
-        let dir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    /// Resolve the results directory to an ABSOLUTE path (Bug 2).
+    ///
+    /// When launched via `open`, LaunchServices sets the process cwd to "/", so a
+    /// cwd-relative "results" resolved to "/results" (filesystem root). Instead:
+    ///   - Running from the bundle (bench/build/bench.app/Contents/MacOS/bench):
+    ///     derive the bench dir from the bundle path and use bench/results.
+    ///     Bundle.main.bundlePath is …/bench/build/bench.app, so ../../results.
+    ///   - Running bare (swift run / direct binary, no .app): fall back to
+    ///     <cwd>/results.
+    static func resultsDirectory() -> URL {
+        let bundlePath = Bundle.main.bundlePath
+        if bundlePath.hasSuffix(".app") {
+            // …/bench/build/bench.app -> up two (build, bench.app) to bench/, then results.
+            let benchDir = URL(fileURLWithPath: bundlePath)
+                .deletingLastPathComponent()   // drop bench.app
+                .deletingLastPathComponent()   // drop build/
+            return benchDir.appendingPathComponent("results")
+        }
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("results")
+    }
+
+    private func writeCSV(_ results: [TrialResult], machine: MachineInfo) {
+        let dir = Benchmark.resultsDirectory()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("\(mode.rawValue)-\(trials).csv")
 

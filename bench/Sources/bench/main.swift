@@ -98,6 +98,15 @@ func runSpecs() -> Never {
     exit(0)
 }
 
+// When launched via LaunchServices (`open`), stdout/stderr go nowhere — mirror
+// them to a log so failures are diagnosable.
+if isatty(STDOUT_FILENO) == 0 {
+    freopen("/tmp/bench-run.log", "a", stdout)
+    freopen("/tmp/bench-run.log", "a", stderr)
+    setvbuf(stdout, nil, _IOLBF, 0)
+    setvbuf(stderr, nil, _IONBF, 0)
+}
+
 let args = Array(CommandLine.arguments.dropFirst())
 
 switch args.first {

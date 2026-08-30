@@ -10,24 +10,62 @@ enum EventPosting {
     /// Virtual key codes for the arrow keys (from Carbon `Events.h`).
     private static let kVKLeftArrow: CGKeyCode = 0x7B
     private static let kVKRightArrow: CGKeyCode = 0x7C
+    /// Virtual key code for the left Control key (Carbon `Events.h`).
+    private static let kVKControl: CGKeyCode = 0x3B
 
-    /// Post a synthetic Ctrl+Arrow keyDown+keyUp to the HID event tap — the
-    /// default macOS "Move left/right a space" Mission Control shortcut. This
-    /// reproduces the user-visible ANIMATED native switch (same transition as a
-    /// real swipe), which is exactly what we want to measure against strafe.
+    /// Post a synthetic Ctrl+Arrow to trigger the default macOS "Move left/right
+    /// a space" Mission Control shortcut. This reproduces the user-visible
+    /// ANIMATED native switch (same transition as a real swipe), which is exactly
+    /// what we want to measure against strafe.
     ///
-    /// Posted to `.cghidEventTap` so it enters as though from the keyboard HID,
-    /// ahead of the session tap, the way a real keypress would.
+    /// IMPORTANT (two things that were both wrong / fragile):
+    ///
+    /// 1. TAP LOCATION. The old code posted to `.cghidEventTap`; on this machine
+    ///    that was a complete no-op — no `activeSpaceDidChange` ever fired and
+    ///    every native right-trial timed out with all clicks landing on the source
+    ///    window (we never left the space). The strafe path works because CStrafe
+    ///    posts its gesture to `kCGSessionEventTap` (see CStrafe.c). We match that:
+    ///    session-tap key events reach the WindowServer hotkey matcher that the
+    ///    HID-tap path did not drive here.
+    ///
+    /// 2. MODIFIER STATE. The WindowServer hotkey matcher tracks the real
+    ///    modifier-KEY state, not just the `.flags` on a lone arrow event. So we
+    ///    press Control as an actual key first, send the arrow down/up carrying
+    ///    the control flag, then release Control — the exact sequence a real
+    ///    Ctrl+Arrow chord produces.
+    ///
+    /// This reproduces the user-visible ANIMATED native Mission Control switch,
+    /// which is what we measure against strafe.
     static func postNativeSwitch(_ direction: SwitchDirection) {
         let keyCode = direction == .left ? kVKLeftArrow : kVKRightArrow
         let source = CGEventSource(stateID: .hidSystemState)
-        guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+        let tap: CGEventTapLocation = .cgSessionEventTap
+
+        // Control key DOWN (modifier press).
+        guard let ctrlDown = CGEvent(
+            keyboardEventSource: source, virtualKey: kVKControl, keyDown: true)
         else { return }
-        down.flags = .maskControl
-        up.flags = .maskControl
-        down.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
+        ctrlDown.flags = .maskControl
+        ctrlDown.post(tap: tap)
+
+        // Arrow DOWN then UP, both carrying the control flag so the chord matches.
+        if let arrowDown = CGEvent(
+            keyboardEventSource: source, virtualKey: keyCode, keyDown: true) {
+            arrowDown.flags = .maskControl
+            arrowDown.post(tap: tap)
+        }
+        if let arrowUp = CGEvent(
+            keyboardEventSource: source, virtualKey: keyCode, keyDown: false) {
+            arrowUp.flags = .maskControl
+            arrowUp.post(tap: tap)
+        }
+
+        // Control key UP (modifier release).
+        if let ctrlUp = CGEvent(
+            keyboardEventSource: source, virtualKey: kVKControl, keyDown: false) {
+            ctrlUp.flags = []
+            ctrlUp.post(tap: tap)
+        }
     }
 
     /// Post one left-click (mouseDown+mouseUp pair) at a global CG point. Used as

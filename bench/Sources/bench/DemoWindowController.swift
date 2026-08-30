@@ -97,12 +97,14 @@ final class DemoWindowController {
         makeWindow(for: .one)
         // Switch right using the exact app code path (CStrafe poster).
         StrafeSwitch.perform(.right)
-        // Let the space change settle before pinning window 2 to it.
-        RunLoop.current.run(until: Date().addingTimeInterval(settle))
+        // Let the space change settle before pinning window 2 to it. Pump AppKit
+        // events (not a bare RunLoop) so window ordering / space bookkeeping and
+        // the activeSpaceDidChange notification actually process during the wait.
+        pumpEvents(until: Date().addingTimeInterval(settle))
         makeWindow(for: .two)
         // Return home (left) so we start trials from space 1 with both windows up.
         StrafeSwitch.perform(.left)
-        RunLoop.current.run(until: Date().addingTimeInterval(settle))
+        pumpEvents(until: Date().addingTimeInterval(settle))
 
         startDisplayLink()
         installClickMonitor()
