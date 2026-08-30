@@ -10,6 +10,31 @@ interactive immediately.
 It runs as a menu-bar accessory (no Dock icon), works with your normal 3-finger
 swipe, and adds keyboard shortcuts and a small CLI.
 
+## Have your agent set it up
+
+Copy this into Claude Code (or any coding agent) and it will handle everything
+except the one click macOS reserves for you:
+
+```text
+Set up strafe (https://github.com/rileycx/strafe), a macOS utility that makes
+Space switching instant. Steps:
+
+1. Clone the repo and read SECURITY.md, then skim the source (~1,100 lines,
+   no dependencies) and confirm the claims hold: the event tap mask covers
+   only gesture events, and there is no network, subprocess, or file-write
+   code. Tell me what you found before proceeding.
+2. Run ./Scripts/bundle.sh and move build/strafe.app to /Applications.
+3. Launch it, then open System Settings > Privacy & Security > Accessibility
+   so I can grant it permission. Remove any stale strafe entries first.
+4. Wait for me to confirm I granted it, then quit strafe from the menu-bar
+   icon and relaunch it — the event tap is only created at launch, so the
+   grant does nothing until the app restarts.
+5. Have me test a 3-finger swipe between Spaces. It should be instant.
+```
+
+The audit step is not decoration: strafe asks for Accessibility, so make your
+agent verify the code before you run it. It's small enough that it actually can.
+
 ## Credit
 
 The instant space-switching technique strafe uses — synthesizing a
