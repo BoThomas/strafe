@@ -6,8 +6,8 @@ import CStrafe
 
 /// Which switch mechanism a run measures.
 enum BenchMode: String, Sendable {
-    case native  // synthetic Ctrl+Arrow -> animated Mission Control switch
-    case strafe  // strafe_post_switch_gesture -> instant dock-swipe
+    case native  // normal-velocity synthetic dock-swipe -> animated Mission Control switch
+    case strafe  // strafe_post_switch_gesture -> instant (high-velocity) dock-swipe
 }
 
 /// Outcome of a single trial.

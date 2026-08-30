@@ -235,6 +235,19 @@ int64_t strafe_gesture_phase_changed(void)     { return kCGSGesturePhaseChanged;
 int64_t strafe_gesture_phase_ended(void)       { return kCGSGesturePhaseEnded; }
 int64_t strafe_gesture_phase_cancelled(void)   { return kCGSGesturePhaseCancelled; }
 
+// --- Private CGEventField indices (SPEC §1.2) -----------------------------
+// Value accessors so an out-of-tree caller can build a custom-shaped dock-swipe
+// event without re-hardcoding these numbers. No behavior change: the app never
+// calls these, and they post nothing. The field indices stay single-sourced in
+// the static consts at the top of this file.
+int32_t strafe_field_cgs_event_type(void)   { return (int32_t)kCGSEventTypeField; }
+int32_t strafe_field_hid_type(void)         { return (int32_t)kCGEventGestureHIDType; }
+int32_t strafe_field_swipe_motion(void)     { return (int32_t)kCGEventGestureSwipeMotion; }
+int32_t strafe_field_swipe_progress(void)   { return (int32_t)kCGEventGestureSwipeProgress; }
+int32_t strafe_field_swipe_velocity_x(void) { return (int32_t)kCGEventGestureSwipeVelocityX; }
+int32_t strafe_field_swipe_velocity_y(void) { return (int32_t)kCGEventGestureSwipeVelocityY; }
+int32_t strafe_field_gesture_phase(void)    { return (int32_t)kCGEventGesturePhase; }
+
 // Raw tap mask: (1<<29) gesture | (1<<30) dock-control ONLY.
 //
 // KEY-EVENTS-IN-MASK DETERMINATION (see docs/SPEC.md §2.1):

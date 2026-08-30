@@ -69,6 +69,22 @@ int64_t strafe_gesture_phase_changed(void);     // 2
 int64_t strafe_gesture_phase_ended(void);       // 4
 int64_t strafe_gesture_phase_cancelled(void);   // 8
 
+// --- Private CGEventField indices (SPEC §1.2) -----------------------------
+// Exposed as functions ONLY so an out-of-tree caller (the bench measurement
+// tool) can build a custom-shaped dock-swipe event without re-hardcoding the
+// magic field numbers. The strafe app itself does not call these — its poster
+// (`strafe_post_switch_gesture`) writes the fields directly. These are pure
+// value accessors: no behavior change, no new event is posted, nothing in the
+// app's code path reads them. The field numbers stay single-sourced in
+// CStrafe.c. See docs/SPEC.md §1.2.
+int32_t strafe_field_cgs_event_type(void);    // 55  -> CGSEventType selector
+int32_t strafe_field_hid_type(void);          // 110 -> IOHIDEvent gesture type
+int32_t strafe_field_swipe_motion(void);      // 123 -> motion axis
+int32_t strafe_field_swipe_progress(void);    // 124 -> progress (double)
+int32_t strafe_field_swipe_velocity_x(void);  // 129 -> velocityX (double)
+int32_t strafe_field_swipe_velocity_y(void);  // 130 -> velocityY (double)
+int32_t strafe_field_gesture_phase(void);     // 132 -> CGSGesturePhase
+
 // Raw event mask the tap must register: the two private gesture types by raw
 // bit shift (1<<29)|(1<<30). Key events are deliberately NOT masked — see the
 // KEY-EVENTS-IN-MASK DETERMINATION at the definition in CStrafe.c.

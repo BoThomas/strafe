@@ -5,10 +5,29 @@
 interactive** — i.e. how long until a click on the new Space is delivered to the
 window living there. It compares two switch mechanisms on the same machine:
 
-- **native** — the default macOS Mission Control shortcut (Ctrl+→ / Ctrl+←),
-  which plays the animated slide and queues input until it finishes.
-- **strafe** — strafe's synthetic high-velocity dock-swipe, posted through the
-  exact same `CStrafe` code path the shipped app uses.
+- **native** — the standard animated Mission Control space switch, triggered by
+  a **normal-velocity synthetic dock-swipe** (a `began` → a short ramp of
+  `changed` events → an `ended` with a moderate end velocity, order ~100–400).
+  Shaped like a real human trackpad swipe, so macOS plays its animated slide and
+  queues input until it finishes.
+- **strafe** — strafe's synthetic **high-velocity** dock-swipe, posted through
+  the exact same `CStrafe` code path the shipped app uses, which the WindowServer
+  reads as a flick and completes instantly with no animation.
+
+Both modes now post the **identical private gesture family** (the dock-swipe
+CGEvent `CStrafe.c` synthesizes); they differ **only in the velocity/progress
+profile** — normal-velocity ramp (animated) vs. `±FLT_TRUE_MIN` progress + very
+high velocity (instant). That makes the comparison an apples-to-apples one: same
+mechanism, same WindowServer path, only the swipe speed changes.
+
+> **Why not Ctrl+Arrow for native?** An earlier version triggered native mode by
+> posting the "Move left/right a space" Mission Control keyboard shortcut
+> (Ctrl+→ / Ctrl+←). On macOS 26 this is a **no-op**: a synthetic Mission Control
+> keyboard shortcut never switches spaces (verified empirically on this machine —
+> zero space changes on either `.cghidEventTap` or `.cgSessionEventTap`, while
+> probe clicks delivered fine, so posting/permissions were working; the keyboard
+> shortcut route specifically is dead). The normal-velocity dock-swipe drives the
+> same WindowServer path a real trackpad swipe does and actually switches.
 
 It also produces the demo windows and the screen-recording / ffmpeg-composition
 scripts for a before/after README video, with **zero personal data** on screen.
@@ -40,7 +59,7 @@ Sources:
 | `DemoWindow.swift` | the borderless per-Space demo view (gradient, label, clock, click flash) |
 | `DemoWindowController.swift` | creates both windows across two Spaces, 60fps clock, click routing |
 | `StrafeSwitch.swift` | thin wrapper over `strafe_post_switch_gesture` (the app's poster) |
-| `EventPosting.swift` | native Ctrl+Arrow switch + probe-click posting |
+| `EventPosting.swift` | native normal-velocity dock-swipe + probe-click posting |
 | `Benchmark.swift` | the trial loop, stats, table + CSV + summary |
 
 ## One change to the main package
@@ -67,10 +86,10 @@ Grant both once, to the **bundle**, and the session is repeatable.
 - macOS 15+ (developed/verified on macOS 26.3, Apple Silicon).
 - `ffmpeg` for the video step: `brew install ffmpeg` (stock build is fine — see
   the drawtext note in *Video tooling*).
-- At least **two** Spaces on your main display, arranged left-to-right, with the
-  Mission Control keyboard shortcuts "Move left/right a space" enabled (System
-  Settings › Keyboard › Keyboard Shortcuts › Mission Control). `native` mode
-  posts Ctrl+→ / Ctrl+← and relies on those defaults.
+- At least **two** Spaces on your main display, arranged left-to-right. `native`
+  mode posts a synthetic dock-swipe gesture (not a keyboard shortcut), so no
+  Mission Control keyboard-shortcut configuration is required — it drives the
+  same WindowServer path as a real trackpad space-swipe.
 
 ### 1. Build + grant (once)
 
@@ -120,8 +139,9 @@ event taps and perturb timing.
 ### 4. Record the before/after takes
 
 For the video you want the *visual* switch on camera. Put the demo windows up in
-one process and record a few switches by hand (trigger native via Ctrl+→, or
-run a `strafe run` in the other mode):
+one process and record a few switches by hand (trigger the animated native switch
+with a real 3-finger trackpad swipe, or run a `bench run --mode strafe` for the
+instant one):
 
 ```bash
 "$BENCH" windows &                      # both demo windows up, live clocks
