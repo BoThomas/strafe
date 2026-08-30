@@ -1,15 +1,107 @@
-# SnapSpace
+# strafe
 
-SnapSpace is a macOS menu-bar utility that makes switching between Spaces near-instant by posting synthetic high-velocity dock-swipe gestures. It runs as an accessory app (no dock icon), with global hotkeys (ctrl+opt+left / ctrl+opt+right) and a status-bar menu to enable/disable it and check permission state. A headless CLI mode is also available (`snapspace switch left|right`, `snapspace status`).
+When you swipe between macOS Spaces with three fingers, the system plays a
+slide animation and queues your input until the transition finishes — roughly
+half a second of dead time on every switch, during which clicks and keystrokes
+go nowhere. strafe removes that dead time. It intercepts the swipe and jumps
+straight to the neighboring Space, so the switch is instant and the new Space is
+interactive immediately.
 
-## Building
+It runs as a menu-bar accessory (no Dock icon), works with your normal 3-finger
+swipe, and adds keyboard shortcuts and a small CLI.
 
-This is a SwiftPM executable package (no Xcode project). Build and run the raw binary during development with `swift build` and `swift run snapspace`. To produce a signed, distributable `SnapSpace.app` (LSUIElement, bundle id `dev.riley.snapspace`, ad-hoc signed), run `./Scripts/bundle.sh` — it builds a release arm64 binary, assembles the bundle under `build/SnapSpace.app`, and prints the final app path. Requires Xcode 26.6 / Swift 6.3 on Apple Silicon; minimum deployment target is macOS 15.
+## Credit
+
+The instant space-switching technique strafe uses — synthesizing a
+high-velocity Dock-swipe `CGEvent` with near-zero progress, and intercepting
+your real trackpad swipe with an active event tap — was invented and first
+implemented by **jurplel** in
+[InstantSpaceSwitcher](https://github.com/jurplel/InstantSpaceSwitcher) (MIT).
+The concept and the original implementation are entirely jurplel's work. strafe
+is an independent reimplementation of that idea; if you want the original, go
+give InstantSpaceSwitcher a star. See [LICENSE](LICENSE) for the full
+acknowledgment and their copyright notice.
+
+## Install
+
+### Build from source (recommended)
+
+```bash
+git clone <repo-url> strafe && cd strafe
+./Scripts/bundle.sh
+```
+
+This builds a release binary and assembles `build/strafe.app` (ad-hoc signed).
+Then:
+
+1. Drag `build/strafe.app` to `/Applications`.
+2. Launch it. It will prompt for Accessibility permission.
+3. Grant it in **System Settings › Privacy & Security › Accessibility**.
+
+The app is about 1,080 lines of Swift and C with no third-party dependencies —
+`swift build` finishes in seconds and you can read the whole thing. See
+[SECURITY.md](SECURITY.md).
+
+### Signed release
+
+Signed and notarized builds are coming via GitHub Releases.
+
+## Usage
+
+- **3-finger swipe** — just works once strafe is running and has Accessibility.
+  Swipe left/right between Spaces and the switch is instant.
+- **Keyboard** — `ctrl`+`opt`+`←` and `ctrl`+`opt`+`→` switch Spaces.
+- **Menu bar** — click the strafe icon to enable/disable interception or check
+  whether Accessibility has been granted.
+- **CLI:**
+
+  ```
+  strafe switch left|right   # switch once and exit
+  strafe status              # print accessibility / tap status
+  strafe                     # start the menu-bar app
+  ```
 
 ## Permissions
 
-Posting gestures and running the event tap requires Accessibility permission (System Settings › Privacy & Security › Accessibility). The app prompts for this on first launch, and the menu shows whether it has been granted; `snapspace status` prints the same readout from the command line (including whether the private CoreGraphicsServices symbols resolved). The real gesture engine (`GestureSwitchEngine`) sits behind the `SwitchEngine` protocol; a logging `StubSwitchEngine` is kept alongside it for tests and dry runs.
+strafe needs **Accessibility** permission, and only that. macOS requires it to
+create an *active* event tap — the kind that can suppress the slow animated
+swipe and replace it with the instant one.
 
-## Credits
+The tap sees only trackpad gesture and dock-control events. It does **not** see
+keystrokes: the event mask excludes key events entirely, and strafe has no
+network, telemetry, file access, or subprocess code. Every one of those claims
+is grep-verifiable — see [SECURITY.md](SECURITY.md) for the exact file and line
+pointers.
 
-The core switching mechanism — synthesizing a high-velocity Dock-swipe `CGEvent` with near-zero progress, posting the began→changed→ended sequence, and intercepting/suppressing the user's real swipe via an active session event tap — is derived from [InstantSpaceSwitcher](https://github.com/jurplel/InstantSpaceSwitcher) by jurplel (MIT License, Copyright © 2026 jurplel), which served as the reference implementation for SnapSpace's low-level `CSnapSpace` shim.
+To revoke: **System Settings › Privacy & Security › Accessibility**, and toggle
+strafe off (or remove it from the list).
+
+## Uninstall
+
+1. Quit strafe from its menu-bar menu.
+2. Delete `strafe.app`.
+3. Remove its entry from **System Settings › Privacy & Security ›
+   Accessibility**.
+
+That's everything. strafe writes no preferences, caches, or other files — there
+is nothing else to clean up.
+
+## How it works
+
+macOS generates a "Dock swipe" event for a real 3-finger horizontal swipe.
+strafe posts a synthetic one with an artificially near-zero *progress* and a
+very high *velocity*. The high velocity makes the WindowServer treat the gesture
+as a flick and skip the slide animation, jumping instantly to the neighboring
+Space. At the same time an active event tap suppresses your real swipe so the OS
+never runs its own animated version. For the field-by-field derivation, read
+[docs/SPEC.md](docs/SPEC.md).
+
+## Requirements
+
+- macOS 15 or newer
+- Apple Silicon (that is what strafe is built and tested on)
+
+## License
+
+MIT — Copyright (c) 2026 Riley Hennigh. See [LICENSE](LICENSE), which also
+carries the acknowledgment and MIT notice for jurplel's InstantSpaceSwitcher.

@@ -1,4 +1,4 @@
-# SnapSpace — Instant macOS Spaces Switching: Implementation Spec
+# strafe — Instant macOS Spaces Switching: Implementation Spec
 
 Source of truth for this spec: reverse-engineered from `jurplel/InstantSpaceSwitcher`
 (ISS), v2.0, MIT-licensed. Core mechanism lives entirely in one C file:
