@@ -1,5 +1,15 @@
 # strafe
 
+Swiping between macOS desktop workspaces is a core part of how I personally work. I might have one Figma file open in fullscreen on one space, another open fullscreen in another space, and every other app that I am interacting with likely is in a fullscreen space dedicated to the app. It's how I prefer to work. I swipe between these tabs like a mad-man. I use this to reference a design, go back and forth between spaces quickly and frequently.
+
+There's only one problem... If you work like this, you will know that whenever you 3-finger swipe between these spaces on macOS, there is a slight delay between when you swipe and when you can actually click on something post-swipe. That delay is slight. 150ms or so (I measured.) But 150ms fifty times in an hour is 7.5 seconds. 7.5 seconds each hour you work is about 60 seconds per day. It's death by a thousand cuts.
+
+This is my contribution to the flow state.
+
+— Riley Hennigh
+
+---
+
 When you swipe between macOS Spaces with three fingers, the system plays a
 slide animation and queues your input until the transition finishes — roughly
 half a second of dead time on every switch, during which clicks and keystrokes
