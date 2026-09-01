@@ -57,7 +57,7 @@ except the one click macOS reserves for you:
 Set up strafe (https://github.com/rileycx/strafe), a macOS utility that makes
 Space switching instant. Steps:
 
-1. Clone the repo and read SECURITY.md, then skim the source (~1,100 lines,
+1. Clone the repo and read SECURITY.md, then skim the source (~1,486 lines,
    no dependencies) and confirm the claims hold: the event tap mask covers
    only gesture events, and there is no network, subprocess, or file-write
    code. Tell me what you found before proceeding.
@@ -88,21 +88,31 @@ acknowledgment and their copyright notice.
 ## Install
 
 strafe is distributed as source only — there is no prebuilt binary to trust.
-You build the code you can read.
+You build the code you can read. That means you need Apple's command line tools
+(`xcode-select --install`, a ~1.5 GB one-time download) and a Swift 6.3 or newer
+toolchain.
 
 ```bash
 git clone https://github.com/rileycx/strafe strafe && cd strafe
-./Scripts/bundle.sh
+./Scripts/install.sh
 ```
 
-This builds a release binary and assembles `build/strafe.app` (ad-hoc signed).
-Then:
+`install.sh` builds `strafe.app`, copies it to `/Applications`, launches it, and
+opens the Accessibility pane. Grant permission there, then quit strafe from its
+menu-bar icon and launch it again — the event tap is created at launch, so the
+grant does nothing until the app restarts.
 
-1. Drag `build/strafe.app` to `/Applications`.
-2. Launch it. It will prompt for Accessibility permission.
-3. Grant it in **System Settings › Privacy & Security › Accessibility**.
+Read the script first if you like; it's about 90 lines and does nothing
+privileged.
+If you'd rather do it by hand, `./Scripts/bundle.sh` just builds
+`build/strafe.app` and leaves it there for you to drag over yourself.
 
-The app is about 1,460 lines of Swift and C with no third-party dependencies —
+One wrinkle worth knowing: the bundle is ad-hoc signed, and ad-hoc signatures
+are content-based. Every rebuild looks like a *different* app to macOS, so
+after you update you will have to re-grant Accessibility and delete the stale
+entry from the list.
+
+The app is about 1,486 lines of Swift and C with no third-party dependencies —
 `swift build` finishes in seconds and you can read the whole thing. See
 [SECURITY.md](SECURITY.md).
 
@@ -112,8 +122,9 @@ The app is about 1,460 lines of Swift and C with no third-party dependencies —
 - **3-finger swipe** — just works once strafe is running and has Accessibility.
   Swipe left/right between Spaces and the switch is instant.
 - **Keyboard** — `ctrl`+`opt`+`←` and `ctrl`+`opt`+`→` switch Spaces.
-- **Menu bar** — click the strafe icon to enable/disable interception or check
-  whether Accessibility has been granted.
+- **Menu bar** — click the strafe icon to enable/disable interception, check
+  whether Accessibility has been granted, and see which version you're running
+  and where to get a newer one.
 - **Transition speed** *(menu bar › Transition speed)* — if instant is too
   abrupt, you can trade some of it back for animation:
 

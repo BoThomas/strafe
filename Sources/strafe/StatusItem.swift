@@ -20,6 +20,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         title: "Accessibility granted: —", action: nil, keyEquivalent: ""
     )
 
+    /// Shipped version, read from the bundle so `VERSION` stays the single
+    /// source of truth (`Scripts/bundle.sh` stamps it into Info.plist). A bare
+    /// `swift build` binary has no Info.plist, and "dev" is the honest answer
+    /// there — it genuinely isn't a released build.
+    private static var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+    }
+
     init(interceptor: SwipeInterceptor, engine: GestureSwitchEngine? = nil) {
         self.interceptor = interceptor
         self.engine = engine
@@ -45,6 +53,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(toggleItem)
         buildSpeedSubmenu(into: menu)
         menu.addItem(accessibilityItem)
+
+        // Update story, stated rather than performed. strafe cannot reach the
+        // internet, so it cannot check for a new version; instead of a
+        // check-for-updates button that would need that ability, the menu just
+        // says what's running and where newer builds live. Both items are inert
+        // text — nothing is opened, copied, or fetched. Keeping them inert is
+        // what lets the greps in SECURITY.md keep returning zero hits, so
+        // resist the urge to make this line clickable.
+        menu.addItem(.separator())
+        for line in ["strafe \(Self.version)",
+                     "No auto-update — github.com/rileycx/strafe"] {
+            let item = NSMenuItem(title: line, action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit strafe", action: #selector(quit), keyEquivalent: "q")
         quit.target = self

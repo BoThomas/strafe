@@ -5,13 +5,19 @@ tap. That is a lot of trust to ask for, so this document states exactly what
 strafe can and cannot do, and how to verify every claim yourself. Every claim
 below points at a file and line you can read or a command you can run.
 
-The whole program is about **1,460 lines** of Swift + C (`wc -l Sources/**`).
+The whole program is about **1,486 lines** of Swift + C (`wc -l Sources/**`).
 You can build it from source in about 30 seconds (`swift build`) and audit it
 in an afternoon.
 
 **strafe ships no binaries.** It is distributed as source only — the only way
 to run it is to compile the code you can read. There is no prebuilt artifact,
-no download, and no update channel to trust.
+no download, and no update channel to trust. Updating means pulling this
+repository and building again.
+
+This is also why the CI configuration holds no secrets. GitHub Actions
+(`.github/workflows/ci.yml`) runs with `permissions: contents: read`, builds,
+and verifies an ad-hoc bundle — there is no signing identity or publishing
+credential anywhere in this repository to steal.
 
 ---
 
@@ -104,8 +110,12 @@ Each of these is verifiable with a single grep over `Sources/`.
   line 28) — never to a network socket, a file, or an analytics sink. Nothing
   batches, serializes, or transmits usage.
 
-- **No auto-update.** strafe never downloads or executes anything. There is no
-  updater, no Sparkle, no download URL (covered by the network grep above).
+- **No auto-update, and no update check.** strafe never downloads or executes
+  anything. There is no updater, no Sparkle, no download URL, and nothing that
+  asks a server whether a newer version exists (all covered by the network grep
+  above). It cannot notify you of an update because it cannot reach the network
+  at all; the menu bar just states the running version and where the source
+  lives. Updating means pulling this repository and building again.
 
 - **No dynamic loading.** strafe does not `dlopen`/`dlsym` anything. The private
   CGS symbols it uses are weak-imported at link time and guarded by an address
