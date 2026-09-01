@@ -127,7 +127,7 @@ Each of these is verifiable with a single grep over `Sources/`.
 
 - **No persistence beyond one menu setting.** strafe stores no databases and no
   caches. It writes exactly one `UserDefaults` value — `transitionSpeed`, an
-  integer 0–3 recording which **Transition speed** preset you picked in the menu
+  integer 0–2 recording which **Transition speed** preset you picked in the menu
   (`TransitionSpeed`, `Sources/strafe/TransitionSpeed.swift` line 101). It
   changes the shape of the gesture strafe *posts*; it has no effect on what the
   tap sees.

@@ -122,10 +122,10 @@ The app is about 1,460 lines of Swift and C with no third-party dependencies —
   | Instant | ~40 ms | the default: no slide at all |
   | Quick | ~80 ms | a hint of motion |
   | Smooth | ~110 ms | a visible but short slide |
-  | Full slide | ~170 ms | macOS's own speed, for reference |
 
-  Slower than "Full slide" isn't offered, because that is already what you get
-  with strafe turned off.
+  Nothing slower is offered. The next step up measures ~170 ms, which is
+  macOS's own animated switch — and that is already what you get with strafe
+  turned off.
 - **CLI:**
 
   ```

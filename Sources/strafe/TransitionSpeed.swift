@@ -29,16 +29,20 @@ import CStrafe
 /// slow end; the ramp axis is evenly spaced and switched 6/6 at every duration.
 /// So the presets below are ramp durations.
 ///
-/// 120 ms is deliberately the slowest option: that is already macOS's native
-/// speed, and there is no reason for strafe to be *slower* than the thing it
-/// replaces. Anyone who wants slower can just turn strafe off.
+/// The ramp deliberately stops at 60 ms (`smooth`). The 120 ms row above
+/// measures 171 ms, which is macOS's own animated switch — and "be exactly as
+/// slow as the thing strafe replaces" is not a setting worth offering. Anyone
+/// who wants that can turn strafe off.
 enum TransitionSpeed: Int, CaseIterable {
     /// The original behaviour: a zero-progress high-velocity flick. No slide.
     case instant = 0
     case quick   = 1
     case smooth  = 2
-    /// Indistinguishable from not running strafe at all. Kept as a reference.
-    case fullSlide = 3
+
+    // rawValue 3 was `fullSlide`, a 120 ms ramp ≈ macOS's native speed. Retired
+    // as a choice. Do NOT reuse 3: a stored 3 written by an older build has to
+    // keep falling through `from(rawValue:)` to `.default` rather than silently
+    // becoming some unrelated preset.
 
     /// Menu title. Carries the measured cost so the choice is an informed one
     /// rather than four adjectives.
@@ -47,7 +51,6 @@ enum TransitionSpeed: Int, CaseIterable {
         case .instant:   return "Instant (~40 ms)"
         case .quick:     return "Quick (~80 ms)"
         case .smooth:    return "Smooth (~110 ms)"
-        case .fullSlide: return "Full slide (~170 ms, macOS default)"
         }
     }
 
@@ -58,7 +61,6 @@ enum TransitionSpeed: Int, CaseIterable {
         case .instant:   return "instant"
         case .quick:     return "quick"
         case .smooth:    return "smooth"
-        case .fullSlide: return "full"
         }
     }
 
@@ -74,7 +76,6 @@ enum TransitionSpeed: Int, CaseIterable {
         case .instant:   return nil
         case .quick:     return 30
         case .smooth:    return 60
-        case .fullSlide: return 120
         }
     }
 
