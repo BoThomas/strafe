@@ -102,7 +102,7 @@ Then:
 2. Launch it. It will prompt for Accessibility permission.
 3. Grant it in **System Settings › Privacy & Security › Accessibility**.
 
-The app is about 1,080 lines of Swift and C with no third-party dependencies —
+The app is about 1,460 lines of Swift and C with no third-party dependencies —
 `swift build` finishes in seconds and you can read the whole thing. See
 [SECURITY.md](SECURITY.md).
 
@@ -114,11 +114,24 @@ The app is about 1,080 lines of Swift and C with no third-party dependencies —
 - **Keyboard** — `ctrl`+`opt`+`←` and `ctrl`+`opt`+`→` switch Spaces.
 - **Menu bar** — click the strafe icon to enable/disable interception or check
   whether Accessibility has been granted.
+- **Transition speed** *(menu bar › Transition speed)* — if instant is too
+  abrupt, you can trade some of it back for animation:
+
+  | preset | measured | what it is |
+  | --- | --- | --- |
+  | Instant | ~40 ms | the default: no slide at all |
+  | Quick | ~80 ms | a hint of motion |
+  | Smooth | ~110 ms | a visible but short slide |
+  | Full slide | ~170 ms | macOS's own speed, for reference |
+
+  Slower than "Full slide" isn't offered, because that is already what you get
+  with strafe turned off.
 - **CLI:**
 
   ```
   strafe switch left|right   # switch once and exit
   strafe status              # print accessibility / tap status
+  strafe speed [preset]      # show or set transition speed
   strafe                     # start the menu-bar app
   ```
 
@@ -130,8 +143,9 @@ swipe and replace it with the instant one.
 
 The tap sees only trackpad gesture and dock-control events. It does **not** see
 keystrokes: the event mask excludes key events entirely, and strafe has no
-network, telemetry, file access, or subprocess code. Every one of those claims
-is grep-verifiable — see [SECURITY.md](SECURITY.md) for the exact file and line
+network, telemetry, file access, or subprocess code. It stores exactly one
+preference: which transition speed you picked. Every one of those claims is
+grep-verifiable — see [SECURITY.md](SECURITY.md) for the exact file and line
 pointers.
 
 To revoke: **System Settings › Privacy & Security › Accessibility**, and toggle
@@ -143,9 +157,10 @@ strafe off (or remove it from the list).
 2. Delete `strafe.app`.
 3. Remove its entry from **System Settings › Privacy & Security ›
    Accessibility**.
+4. If you ever changed the transition speed: `defaults delete com.rileycx.strafe`.
 
-That's everything. strafe writes no preferences, caches, or other files — there
-is nothing else to clean up.
+That's everything. strafe writes no caches, databases, or other files — that one
+preference is the only thing it can leave behind.
 
 ## How it works
 
