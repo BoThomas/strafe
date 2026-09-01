@@ -34,8 +34,20 @@ func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
             FileHandle.standardError.write(Data("unknown direction '\(args[1])' (expected left|right)\n".utf8))
             return 2
         }
+        // Honor the persisted transition speed, same as the menu-bar app, so
+        // `strafe switch` and a real swipe look identical.
+        engine.setTransitionSpeed(TransitionSpeed.stored)
         do {
             try engine.switchSpace(direction)
+            // A ramped switch posts asynchronously; returning here exits the
+            // process, so drain it first or the gesture never finishes.
+            engine.waitForPendingSwitch()
+            // `CGEventPost` hands the event to the WindowServer asynchronously.
+            // Returning here exits immediately, and an exit that close behind the
+            // post loses the gesture — measured: without this pause `strafe
+            // switch` posts successfully and nothing moves. The menu-bar app
+            // never hits this because it stays alive.
+            usleep(120_000)
             return 0
         } catch {
             FileHandle.standardError.write(Data("switch failed: \(error)\n".utf8))
@@ -48,6 +60,30 @@ func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
         Permissions.printStatus(tapRunning: false, cgsAvailable: engine.cgsAvailable)
         return 0
 
+    case "speed":
+        // Same setting the menu-bar "Transition speed" submenu writes; a running
+        // menu-bar app won't notice until relaunch.
+        guard args.count >= 2 else {
+            let current = TransitionSpeed.stored
+            print("transition speed: \(current.title)")
+            let width = TransitionSpeed.allCases.map(\.name.count).max() ?? 0
+            for speed in TransitionSpeed.allCases {
+                let mark = speed == current ? "*" : " "
+                let pad = String(repeating: " ", count: width - speed.name.count)
+                print("  \(mark) \(speed.name)\(pad)  \(speed.title)")
+            }
+            return 0
+        }
+        guard let speed = TransitionSpeed(name: args[1]) else {
+            let names = TransitionSpeed.allCases.map(\.name).joined(separator: "|")
+            FileHandle.standardError.write(Data(
+                "unknown speed '\(args[1])' (expected \(names))\n".utf8))
+            return 2
+        }
+        speed.persist()
+        print("transition speed: \(speed.title)")
+        return 0
+
     default:
         FileHandle.standardError.write(Data("""
         strafe — near-instant macOS Spaces switching
@@ -56,6 +92,7 @@ func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
           strafe                      start the menu-bar app
           strafe switch left|right    switch space once and exit
           strafe status               print accessibility / tap status
+          strafe speed [preset]       show or set the swipe transition speed
 
         """.utf8))
         return 2
@@ -93,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Permissions.checkAccessibility(prompt: true)
 
         interceptor = SwipeInterceptor(engine: engine)
-        statusItem = StatusItemController(interceptor: interceptor)
+        statusItem = StatusItemController(interceptor: interceptor, engine: engine)
 
         hotkeys = HotkeyManager(engine: engine)
         hotkeys.register()

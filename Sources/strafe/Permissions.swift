@@ -33,5 +33,6 @@ enum Permissions {
         print("  Accessibility granted: \(ax)")
         print("  Event tap running:     \(tap)")
         print("  CGS symbols resolved:  \(cgs)")
+        print("  Transition speed:      \(TransitionSpeed.stored.title)")
     }
 }

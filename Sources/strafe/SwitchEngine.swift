@@ -59,8 +59,24 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
 
     /// Per-display predicted current-space index, keyed by display UUID
     /// (SPEC §2.4). Avoids rebounding off the laggy live active-space query.
+    /// Also guards `speed`.
     private let lock = NSLock()
     private var predictions: [String: UInt32] = [:]
+    private var speed: TransitionSpeed = .default
+
+    /// Serial queue for the ramped (animated) transition speeds.
+    ///
+    /// A ramp is a sequence of posts spread over 30–120 ms, and `switchSpace` is
+    /// called from the event-tap callback, which runs on the **main run loop** —
+    /// sleeping there would stall the tap and every other main-thread client for
+    /// the length of the animation. So ramps are posted off-thread.
+    ///
+    /// Serial, not concurrent, and deliberately so: two swipes in quick
+    /// succession must not interleave their began/changed/ended streams. The
+    /// second ramp starts only once the first has posted its `ended`.
+    private let rampQueue = DispatchQueue(
+        label: "com.rileycx.strafe.ramp", qos: .userInteractive
+    )
 
     init(velocity: Double = GestureSwitchEngine.instantVelocity) {
         self.velocity = velocity
@@ -68,6 +84,69 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
 
     /// Whether the private CGS topology symbols resolved (SPEC §1.1, §6).
     var cgsAvailable: Bool { strafe_cgs_available() }
+
+    /// The current transition speed. Read/written under the same lock as the
+    /// predictions because the menu (main actor) sets it while the event-tap
+    /// callback reads it.
+    var transitionSpeed: TransitionSpeed {
+        lock.lock(); defer { lock.unlock() }
+        return speed
+    }
+
+    func setTransitionSpeed(_ newValue: TransitionSpeed) {
+        lock.lock()
+        speed = newValue
+        lock.unlock()
+    }
+
+    /// Block until any in-flight ramp has finished posting.
+    ///
+    /// Only CLI mode needs this: it issues one switch and then exits the
+    /// process, which would kill a ramp partway through its `changed` stream and
+    /// leave the gesture unfinished. The menu-bar app never calls it — blocking
+    /// there is exactly what `rampQueue` exists to avoid.
+    func waitForPendingSwitch() {
+        rampQueue.sync {}
+    }
+
+    /// Post one directional switch in whatever shape the current speed calls for.
+    ///
+    /// Returns whether the switch was *dispatched*, not whether it completed:
+    /// the instant path posts synchronously and can report a failed
+    /// `CGEventCreate`, while a ramp is handed to `rampQueue` and returns true
+    /// immediately. Either way the caller's optimistic prediction update is
+    /// correct, because that models where we are going, not where we are.
+    private func post(_ direction: SwitchDirection, speed: TransitionSpeed) -> Bool {
+        guard let rampMs = speed.rampMilliseconds else {
+            return strafe_post_switch_gesture(direction.cDirection, velocity)
+        }
+
+        let sign: Double = direction == .right ? 1.0 : -1.0
+        let steps = TransitionSpeed.rampSteps
+        let peak = TransitionSpeed.rampPeakProgress
+        let endVelocity = TransitionSpeed.rampEndVelocity
+        let perStep = UInt32((rampMs / Double(steps)) * 1000.0)   // µs
+
+        rampQueue.async {
+            // began: at rest. The motion in the `changed` stream below is what
+            // makes the WindowServer animate instead of jumping.
+            _ = strafe_post_dock_swipe_phase(strafe_gesture_phase_began(), 0.0, 0.0)
+            for step in 1...steps {
+                let frac = Double(step) / Double(steps)
+                _ = strafe_post_dock_swipe_phase(
+                    strafe_gesture_phase_changed(),
+                    sign * peak * frac,
+                    sign * endVelocity * frac
+                )
+                if perStep > 0 { usleep(perStep) }
+            }
+            // ended: a moderate velocity commits the switch with its animation.
+            _ = strafe_post_dock_swipe_phase(
+                strafe_gesture_phase_ended(), sign * peak, sign * endVelocity
+            )
+        }
+        return true
+    }
 
     func switchSpace(_ direction: SwitchDirection) throws {
         // Read live topology once. If CGS symbols are unavailable we can't do
@@ -92,9 +171,10 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
             }
 
             let target: UInt32 = direction == .left ? current - 1 : current + 1
+            let shape = speed
             lock.unlock()
 
-            guard strafe_post_switch_gesture(direction.cDirection, velocity) else {
+            guard post(direction, speed: shape) else {
                 throw SwitchEngineError.postFailed
             }
 
@@ -103,7 +183,7 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
             predictions[displayID] = target
             lock.unlock()
         } else {
-            guard strafe_post_switch_gesture(direction.cDirection, velocity) else {
+            guard post(direction, speed: transitionSpeed) else {
                 throw SwitchEngineError.postFailed
             }
         }

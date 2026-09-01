@@ -42,6 +42,13 @@ bool strafe_cgs_available(void);
 // (default 2000.0 == "instant"); sign is applied internally from `direction`.
 bool strafe_post_switch_gesture(StrafeDirection direction, double velocity);
 
+// Post ONE phase of a horizontal dock swipe with an explicit progress and
+// velocity, to the same tap. Used only by the animated Transition speed
+// presets, which post a began -> ramped `changed` stream -> ended sequence
+// (SPEC §1.4); the instant preset uses the function above. Returns false only
+// if the event could not be created.
+bool strafe_post_dock_swipe_phase(int64_t phase, double progress, double velocity);
+
 // --- Topology (SPEC §6) ---------------------------------------------------
 // Fill `outInfo` for the display under the cursor. Returns false if the CGS
 // symbols are unavailable or topology could not be read.
@@ -72,11 +79,11 @@ int64_t strafe_gesture_phase_cancelled(void);   // 8
 // --- Private CGEventField indices (SPEC §1.2) -----------------------------
 // Exposed as functions ONLY so an out-of-tree caller (the bench measurement
 // tool) can build a custom-shaped dock-swipe event without re-hardcoding the
-// magic field numbers. The strafe app itself does not call these — its poster
-// (`strafe_post_switch_gesture`) writes the fields directly. These are pure
-// value accessors: no behavior change, no new event is posted, nothing in the
-// app's code path reads them. The field numbers stay single-sourced in
-// CStrafe.c. See docs/SPEC.md §1.2.
+// magic field numbers. The strafe app itself does not call these — its posters
+// (`strafe_post_switch_gesture`, `strafe_post_dock_swipe_phase`) write the
+// fields directly. These are pure value accessors: no behavior change, no new
+// event is posted, nothing in the app's code path reads them. The field numbers
+// stay single-sourced in CStrafe.c. See docs/SPEC.md §1.2.
 int32_t strafe_field_cgs_event_type(void);    // 55  -> CGSEventType selector
 int32_t strafe_field_hid_type(void);          // 110 -> IOHIDEvent gesture type
 int32_t strafe_field_swipe_motion(void);      // 123 -> motion axis

@@ -61,6 +61,24 @@ bool strafe_cgs_available(void) {
 }
 
 // --- Synthesis (SPEC §1.5) ------------------------------------------------
+// One phase of a horizontal dock swipe, with progress and velocity supplied by
+// the caller. Every field the WindowServer reads is set here; the two callers
+// below differ only in the numbers they hand it.
+static bool post_dock_swipe_shaped(CGSGesturePhase phase, double progress, double velocity) {
+    CGEventRef ev = CGEventCreate(NULL);
+    if (!ev) { return false; }
+    CGEventSetIntegerValueField(ev, kCGSEventTypeField,            kCGSEventDockControl);
+    CGEventSetIntegerValueField(ev, kCGEventGestureHIDType,        kIOHIDEventTypeDockSwipe);
+    CGEventSetIntegerValueField(ev, kCGEventGesturePhase,          phase);
+    CGEventSetDoubleValueField (ev, kCGEventGestureSwipeProgress,  progress);
+    CGEventSetIntegerValueField(ev, kCGEventGestureSwipeMotion,    kCGGestureMotionHorizontal);
+    CGEventSetDoubleValueField (ev, kCGEventGestureSwipeVelocityX, velocity);
+    CGEventSetDoubleValueField (ev, kCGEventGestureSwipeVelocityY, velocity);
+    CGEventPost(kCGSessionEventTap, ev);
+    CFRelease(ev);
+    return true;
+}
+
 static bool post_dock_swipe(CGSGesturePhase phase, StrafeDirection direction, double velocity) {
     const bool isRight = (direction == StrafeDirectionRight);
     // Empirically, ±FLT_TRUE_MIN used in this way makes switching instant.
@@ -69,18 +87,7 @@ static bool post_dock_swipe(CGSGesturePhase phase, StrafeDirection direction, do
     // Velocity of gesture based on speed setting.
     const double vel = isRight ? velocity : -velocity;
 
-    CGEventRef ev = CGEventCreate(NULL);
-    if (!ev) { return false; }
-    CGEventSetIntegerValueField(ev, kCGSEventTypeField,            kCGSEventDockControl);
-    CGEventSetIntegerValueField(ev, kCGEventGestureHIDType,        kIOHIDEventTypeDockSwipe);
-    CGEventSetIntegerValueField(ev, kCGEventGesturePhase,          phase);
-    CGEventSetDoubleValueField (ev, kCGEventGestureSwipeProgress,  progress);
-    CGEventSetIntegerValueField(ev, kCGEventGestureSwipeMotion,    kCGGestureMotionHorizontal);
-    CGEventSetDoubleValueField (ev, kCGEventGestureSwipeVelocityX, vel);
-    CGEventSetDoubleValueField (ev, kCGEventGestureSwipeVelocityY, vel);
-    CGEventPost(kCGSessionEventTap, ev);
-    CFRelease(ev);
-    return true;
+    return post_dock_swipe_shaped(phase, progress, vel);
 }
 
 bool strafe_post_switch_gesture(StrafeDirection direction, double velocity) {
@@ -89,6 +96,15 @@ bool strafe_post_switch_gesture(StrafeDirection direction, double velocity) {
     return post_dock_swipe(kCGSGesturePhaseBegan,   direction, velocity)
         && post_dock_swipe(kCGSGesturePhaseChanged, direction, velocity)
         && post_dock_swipe(kCGSGesturePhaseEnded,   direction, velocity);
+}
+
+// One phase with caller-chosen progress and velocity, for the animated
+// Transition speed presets (SPEC §1.4). A began, then a `changed` stream whose
+// progress climbs, then an ended is what makes the WindowServer run its slide
+// instead of flicking. The instant preset does not use this — it still goes
+// through `strafe_post_switch_gesture` above, unchanged.
+bool strafe_post_dock_swipe_phase(int64_t phase, double progress, double velocity) {
+    return post_dock_swipe_shaped((CGSGesturePhase)phase, progress, velocity);
 }
 
 // --- Topology (SPEC §6) ---------------------------------------------------
