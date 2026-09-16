@@ -7,6 +7,14 @@ import Foundation
 /// This is a working implementation (not stubbed). Carbon hotkeys are still the
 /// simplest reliable way to grab a system-wide key combo without a full event
 /// tap, and they do not require Accessibility permission.
+///
+/// **Toggleable.** Ctrl+Option+Left/Right is also a common chord for
+/// third-party window-tiling tools (and macOS's own tiling shortcuts), and
+/// Carbon's `RegisterEventHotKey` grabs it system-wide ahead of them. Since
+/// this is a separate mechanism from the gesture tap (SPEC §2), it can be
+/// switched off independently via `HotkeyManager.enabled` / the menu-bar
+/// "Space-switch hotkeys" item / `strafe hotkeys off` — leaving the swipe
+/// speedup itself untouched.
 @MainActor
 final class HotkeyManager {
     private let engine: SwitchEngine
@@ -47,6 +55,38 @@ final class HotkeyManager {
             RemoveEventHandler(eventHandler)
             self.eventHandler = nil
         }
+    }
+
+    /// Register or unregister to match the persisted setting. Safe to call
+    /// repeatedly (both `register`/`unregister` are no-ops in the direction
+    /// that's already satisfied, aside from a redundant handler install check).
+    func applyStoredState() {
+        if HotkeyManager.enabled {
+            register()
+        } else {
+            unregister()
+        }
+    }
+
+    // MARK: - Persistence
+
+    /// `nonisolated` so the CLI (`strafe hotkeys [on|off]`, no run loop, no
+    /// main actor) can read/write this without hopping actors.
+
+    /// The one `UserDefaults` key this setting uses, following the same
+    /// convention as `TransitionSpeed.storageKey`.
+    nonisolated static let enabledStorageKey = "spaceHotkeysEnabled"
+
+    /// The persisted setting. An absent key — a fresh install — means `true`,
+    /// so strafe's out-of-the-box behaviour is unchanged by this feature.
+    /// `object(forKey:)` rather than `bool(forKey:)` so "never set" is
+    /// distinguishable from a stored `false`.
+    nonisolated static var enabled: Bool {
+        Preferences.store.object(forKey: enabledStorageKey) as? Bool ?? true
+    }
+
+    nonisolated static func persist(enabled: Bool) {
+        Preferences.store.set(enabled, forKey: enabledStorageKey)
     }
 
     // MARK: - Internals

@@ -135,24 +135,30 @@ Each of these is verifiable with a single grep over `Sources/`.
   art, it does **not** shell out to `tccutil` or anything else
   (`grep -rniE 'Process\(\)|/usr/bin|/bin/|tccutil' Sources/` — no spawns).
 
-- **No persistence beyond one menu setting.** strafe stores no databases and no
-  caches. It writes exactly one `UserDefaults` value — `transitionSpeed`, an
-  integer 0–2 recording which **Transition speed** preset you picked in the menu
-  (`TransitionSpeed`, `Sources/strafe/TransitionSpeed.swift` line 101). It
-  changes the shape of the gesture strafe *posts*; it has no effect on what the
-  tap sees.
+- **No persistence beyond two menu settings.** strafe stores no databases and no
+  caches. It writes two `UserDefaults` values: `transitionSpeed`, an integer
+  0–2 recording which **Transition speed** preset you picked in the menu
+  (`TransitionSpeed`, `Sources/strafe/TransitionSpeed.swift` line 101); and
+  `spaceHotkeysEnabled`, a bool recording whether the Ctrl+Option+Left/Right
+  **Space-switch hotkeys** toggle is on (`HotkeyManager`,
+  `Sources/strafe/HotkeyManager.swift`). Neither has any effect on what the
+  gesture tap sees — the first changes the shape of the gesture strafe
+  *posts*, the second only registers/unregisters a Carbon global hotkey (a
+  separate mechanism from the tap, added so the hotkeys can be turned off
+  independently if they conflict with a third-party shortcut bound to the
+  same chord).
 
   Reads and writes go through one accessor, so the two launch modes
   (`strafe.app` and the bare CLI, which has no bundle id) cannot land in
   different plists:
 
   ```
-  grep -rn 'Preferences.store' Sources/   # two hits, one key
+  grep -rn 'Preferences.store' Sources/   # four hits, two keys
   grep -rn 'UserDefaults(' Sources/       # one hit: the suite in Preferences.swift
   ```
 
-  No usage data, no history, no coordinates — the plist holds one integer.
-  Deleting `strafe.app` leaves behind only that plist, which
+  No usage data, no history, no coordinates — the plist holds two small
+  values. Deleting `strafe.app` leaves behind only that plist, which
   `defaults delete com.rileycx.strafe` removes (see README → Uninstall).
 
 ---

@@ -84,6 +84,27 @@ func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
         print("transition speed: \(speed.title)")
         return 0
 
+    case "hotkeys":
+        // Same setting the menu-bar "Space-switch hotkeys" item writes; a
+        // running menu-bar app picks it up immediately (it re-applies on
+        // toggle), the CLI just reports/writes the stored value.
+        guard args.count >= 2 else {
+            print("space-switch hotkeys: \(HotkeyManager.enabled ? "on" : "off")")
+            return 0
+        }
+        let enabled: Bool
+        switch args[1] {
+        case "on": enabled = true
+        case "off": enabled = false
+        default:
+            FileHandle.standardError.write(Data(
+                "unknown value '\(args[1])' (expected on|off)\n".utf8))
+            return 2
+        }
+        HotkeyManager.persist(enabled: enabled)
+        print("space-switch hotkeys: \(enabled ? "on" : "off")")
+        return 0
+
     default:
         FileHandle.standardError.write(Data("""
         strafe — near-instant macOS Spaces switching
@@ -93,6 +114,7 @@ func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
           strafe switch left|right    switch space once and exit
           strafe status               print accessibility / tap status
           strafe speed [preset]       show or set the swipe transition speed
+          strafe hotkeys [on|off]     show or set the ctrl+opt+arrow hotkeys
 
         """.utf8))
         return 2
@@ -130,10 +152,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Permissions.checkAccessibility(prompt: true)
 
         interceptor = SwipeInterceptor(engine: engine)
-        statusItem = StatusItemController(interceptor: interceptor, engine: engine)
 
         hotkeys = HotkeyManager(engine: engine)
-        hotkeys.register()
+        hotkeys.applyStoredState()
+
+        statusItem = StatusItemController(interceptor: interceptor, engine: engine, hotkeys: hotkeys)
 
         // SPEC §2.4 / §5: reset the prediction dictionary to live CGS data
         // whenever the OS reports a real space change, so rapid repeated swipes

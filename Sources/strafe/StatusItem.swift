@@ -8,6 +8,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let interceptor: SwipeInterceptor
     private let engine: GestureSwitchEngine?
+    private let hotkeys: HotkeyManager?
 
     private let toggleItem = NSMenuItem(
         title: "Enable", action: #selector(toggleEnabled), keyEquivalent: ""
@@ -16,6 +17,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         title: "Transition speed", action: nil, keyEquivalent: ""
     )
     private var speedItems: [NSMenuItem] = []
+    private let hotkeysItem = NSMenuItem(
+        title: "Space-switch hotkeys (⌃⌥←/→)", action: #selector(toggleHotkeys), keyEquivalent: ""
+    )
     private let accessibilityItem = NSMenuItem(
         title: "Accessibility granted: —", action: nil, keyEquivalent: ""
     )
@@ -28,9 +32,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
     }
 
-    init(interceptor: SwipeInterceptor, engine: GestureSwitchEngine? = nil) {
+    init(interceptor: SwipeInterceptor, engine: GestureSwitchEngine? = nil, hotkeys: HotkeyManager? = nil) {
         self.interceptor = interceptor
         self.engine = engine
+        self.hotkeys = hotkeys
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -52,6 +57,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.addItem(toggleItem)
         buildSpeedSubmenu(into: menu)
+        if hotkeys != nil {
+            hotkeysItem.target = self
+            menu.addItem(hotkeysItem)
+        }
         menu.addItem(accessibilityItem)
 
         // Update story, stated rather than performed. strafe cannot reach the
@@ -127,6 +136,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         refresh()
     }
 
+    /// Toggle the Ctrl+Option+Left/Right global hotkeys, independent of the
+    /// gesture tap (`toggleEnabled`). This is the mechanism that can conflict
+    /// with third-party window-tiling shortcuts bound to the same chord.
+    @objc private func toggleHotkeys() {
+        guard let hotkeys else { return }
+        let newValue = !HotkeyManager.enabled
+        HotkeyManager.persist(enabled: newValue)
+        hotkeys.applyStoredState()
+        refresh()
+    }
+
     @objc private func quit() {
         interceptor.teardown()
         NSApp.terminate(nil)
@@ -143,5 +163,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         let granted = Permissions.isAccessibilityGranted
         accessibilityItem.title = "Accessibility granted: \(granted ? "yes" : "no")"
+        hotkeysItem.state = HotkeyManager.enabled ? .on : .off
     }
 }
