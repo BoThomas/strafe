@@ -72,3 +72,24 @@ Strict Swift compilation, the four Swift tests, C tests with undefined-behavior
 sanitization, release bundling, and signature verification passed locally.
 Earlier macOS releases were not runtime-tested. These checks do not constitute
 a comprehensive penetration test or a certification of the whole application.
+
+## PR #4 follow-up
+
+The hotkey toggle was updated to notify running copies after a preference write
+and to preserve registration handles across repeated enable requests. The
+original contribution remains authored by Maroun Najjar; the integration and
+follow-up changes are maintainer commits.
+
+The added `DistributedNotificationCenter` notification stays in the same login
+session and carries no payload. The receiver ignores notification data, reloads
+its own saved preference, and only updates the existing Carbon registrations.
+Observers are removed on shutdown. No network, subprocess, credential access,
+additional input mask, or permissions were added to the app.
+
+The new test script compiles the production manager with an isolated preference
+domain and replacement Carbon registration functions. Tests cover default-on
+behavior, repeated enable/disable, stop/start, and live updates from a separate
+process without taking over real keyboard shortcuts. These tests, the existing
+Swift and C tests, strict compilation, bundling, and signature verification all
+passed locally. CI now runs the same hotkey tests with its existing read-only
+permissions and without introducing dependencies or secrets.
