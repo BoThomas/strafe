@@ -147,6 +147,9 @@ This update was tested on macOS 27.0; older macOS versions have not been reteste
 - **3-finger swipe** — just works once strafe is running and has Accessibility.
   Swipe left/right between Spaces and the switch is instant.
 - **Keyboard** — `ctrl`+`opt`+`←` and `ctrl`+`opt`+`→` switch Spaces.
+  Turn off **Space-switch hotkeys** in the menu if these conflict with another
+  app. Swipes keep working. `strafe hotkeys off` and `strafe hotkeys on` also
+  update a running copy without restarting it.
 - **Menu bar** — click the strafe icon to enable/disable interception, check
   whether Accessibility has been granted, and see which version you're running
   and where to get a newer one.
@@ -173,6 +176,7 @@ This update was tested on macOS 27.0; older macOS versions have not been reteste
   strafe switch left|right   # switch once and exit
   strafe status              # print accessibility / tap status
   strafe speed [preset]      # show or set transition speed
+  strafe hotkeys [on|off]    # show or set Space-switch hotkeys
   strafe                     # start the menu-bar app
   ```
 
@@ -185,7 +189,7 @@ swipe and replace it with the instant one.
 The tap sees only trackpad gesture and dock-control events. It does **not** see
 keystrokes: the event mask excludes key events entirely, and strafe has no
 network, telemetry, file access, or subprocess code. It saves your transition
-speed preference; AppKit also saves menu-bar icon visibility, which strafe resets
+speed and hotkey preferences; AppKit also saves menu-bar icon visibility, which strafe resets
 on launch. See [SECURITY.md](SECURITY.md) for the exact file and line
 pointers.
 

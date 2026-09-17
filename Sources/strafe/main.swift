@@ -85,9 +85,7 @@ func runCLI(_ args: [String], engine: GestureSwitchEngine) -> Int32 {
         return 0
 
     case "hotkeys":
-        // Same setting the menu-bar "Space-switch hotkeys" item writes; a
-        // running menu-bar app picks it up immediately (it re-applies on
-        // toggle), the CLI just reports/writes the stored value.
+        // Persist the setting and notify any running menu-bar app to apply it.
         guard args.count >= 2 else {
             print("space-switch hotkeys: \(HotkeyManager.enabled ? "on" : "off")")
             return 0
@@ -154,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         interceptor = SwipeInterceptor(engine: engine)
 
         hotkeys = HotkeyManager(engine: engine)
-        hotkeys.applyStoredState()
+        hotkeys.start()
 
         statusItem = StatusItemController(interceptor: interceptor, engine: engine, hotkeys: hotkeys)
 
@@ -180,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         interceptor?.teardown()
-        hotkeys?.unregister()
+        hotkeys?.stop()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 }

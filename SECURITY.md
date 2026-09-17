@@ -167,13 +167,20 @@ Each of these is verifiable with a single grep over `Sources/`.
   different plists:
 
   ```
-  grep -rn 'Preferences.store' Sources/   # four hits, two keys
+  grep -rn 'Preferences.store' Sources/   # two keys, plus cache synchronization
   grep -rn 'UserDefaults(' Sources/       # one hit: the suite in Preferences.swift
   ```
 
   AppKit also saves menu-bar item visibility automatically when the icon is
   hidden or shown. strafe resets visibility on every fresh launch, so hiding
   the icon only lasts until the app is reopened or restarted.
+
+  Changing the hotkey setting flushes the shared preference and posts a local
+  `DistributedNotificationCenter` notification in the same login session.
+  It carries no payload. A running strafe rereads its own preference and
+  updates only its existing Carbon shortcut registrations; it does not accept
+  commands or settings from notification data. This adds no network access or
+  permissions.
 
   No usage data, no history, no coordinates are stored.
   Deleting `strafe.app` leaves behind only that plist, which
