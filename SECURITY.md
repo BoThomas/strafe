@@ -150,24 +150,37 @@ Each of these is verifiable with a single grep over `Sources/`.
   (`grep -rniE 'Process\(\)|/usr/bin|/bin/|tccutil' Sources/` — no spawns).
 
 - **Persistence is limited to menu settings.** strafe stores no databases and no
-  caches. Its own code writes one `UserDefaults` value — `transitionSpeed`, an
-  integer 0–2 recording which **Transition speed** preset you picked in the menu
-  (`TransitionSpeed`, `Sources/strafe/TransitionSpeed.swift` line 101). It
-  changes the shape of the gesture strafe *posts*; it has no effect on what the
-  tap sees.
+  caches. Its own code writes two `UserDefaults` values: `transitionSpeed`, an integer
+  0–2 recording which **Transition speed** preset you picked in the menu
+  (`TransitionSpeed`, `Sources/strafe/TransitionSpeed.swift` line 101); and
+  `spaceHotkeysEnabled`, a bool recording whether the Ctrl+Option+Left/Right
+  **Space-switch hotkeys** toggle is on (`HotkeyManager`,
+  `Sources/strafe/HotkeyManager.swift`). Neither has any effect on what the
+  gesture tap sees — the first changes the shape of the gesture strafe
+  *posts*, the second only registers/unregisters a Carbon global hotkey (a
+  separate mechanism from the tap, added so the hotkeys can be turned off
+  independently if they conflict with a third-party shortcut bound to the
+  same chord).
 
   Reads and writes go through one accessor, so the two launch modes
   (`strafe.app` and the bare CLI, which has no bundle id) cannot land in
   different plists:
 
   ```
-  grep -rn 'Preferences.store' Sources/   # two hits, one key
+  grep -rn 'Preferences.store' Sources/   # two keys, plus cache synchronization
   grep -rn 'UserDefaults(' Sources/       # one hit: the suite in Preferences.swift
   ```
 
   AppKit also saves menu-bar item visibility automatically when the icon is
   hidden or shown. strafe resets visibility on every fresh launch, so hiding
   the icon only lasts until the app is reopened or restarted.
+
+  Changing the hotkey setting flushes the shared preference and posts a local
+  `DistributedNotificationCenter` notification in the same login session.
+  It carries no payload. A running strafe rereads its own preference and
+  updates only its existing Carbon shortcut registrations; it does not accept
+  commands or settings from notification data. This adds no network access or
+  permissions.
 
   No usage data, no history, no coordinates are stored.
   Deleting `strafe.app` leaves behind only that plist, which

@@ -27,6 +27,9 @@ jobs:
       - name: Test Space boundaries and gesture completion
         run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
+      - name: Test hotkey settings across processes (no shortcuts captured)
+        run: bash Tests/hotkeys.sh
+
       - name: Bundle strafe.app (ad-hoc signed in CI)
         run: ./Scripts/bundle.sh
 
