@@ -8,6 +8,47 @@
 
 static CGEventRef postedEvents[6];
 static unsigned postedCount;
+static CFArrayRef overlayWindows;
+
+// Supply window metadata so overlay tests do not depend on the live desktop.
+CFArrayRef CGWindowListCopyWindowInfo(CGWindowListOption options, CGWindowID relativeToWindow) {
+    assert(options == (kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements));
+    assert(relativeToWindow == kCGNullWindowID);
+    return overlayWindows ? (CFArrayRef)CFRetain(overlayWindows) : NULL;
+}
+
+static void check_overlay(CFStringRef owner, const int *layers, size_t count, bool expected) {
+    CFMutableArrayRef windows = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
+    assert(windows);
+    for (size_t i = 0; i < count; i++) {
+        CFNumberRef layer = CFNumberCreate(NULL, kCFNumberIntType, &layers[i]);
+        const void *keys[] = {kCGWindowOwnerName, kCGWindowLayer};
+        const void *values[] = {owner, layer};
+        CFDictionaryRef window = CFDictionaryCreate(NULL, keys, values, 2,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        CFArrayAppendValue(windows, window);
+        CFRelease(window);
+        CFRelease(layer);
+    }
+    overlayWindows = windows;
+    assert(strafe_is_expose_active() == expected);
+    overlayWindows = NULL;
+    CFRelease(windows);
+}
+
+static void check_overlay_detection(void) {
+    assert(!strafe_is_expose_active()); // Window enumeration unavailable.
+    check_overlay(CFSTR("Dock"), NULL, 0, false);
+    check_overlay(CFSTR("Dock"), (int[]){18}, 1, false);
+    check_overlay(CFSTR("Dock"), (int[]){18, 18, 20}, 3, true);
+    check_overlay(CFSTR("Dock"), (int[]){18, 20, 20}, 3, true);
+    check_overlay(CFSTR("Finder"), (int[]){18, 20}, 2, false);
+    check_overlay(CFSTR("Finder"), (int[]){20}, 1, false);
+    check_overlay(CFSTR("Dock"), (int[]){0, 19, 21}, 3, false);
+    bool modern = false;
+    if (__builtin_available(macOS 27.0, *)) { modern = true; }
+    check_overlay(CFSTR("Dock"), (int[]){20}, 1, modern);
+}
 
 // Override the framework entry point in this test executable. Exercise the
 // real synthesizer without sending input to the user's desktop.
@@ -114,5 +155,6 @@ int main(void) {
     assert(strafe_tap_event_mask() == ((1ULL << 29) | (1ULL << 30)));
     check_instant_switch(StrafeDirectionRight);
     check_instant_switch(StrafeDirectionLeft);
-    puts("IOHID payload and direction tests passed (no events posted)");
+    check_overlay_detection();
+    puts("IOHID payload, direction, and overlay tests passed (no events posted)");
 }

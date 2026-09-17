@@ -4,6 +4,18 @@ import XCTest
 @testable import strafe
 
 final class BoundaryTests: XCTestCase {
+    func testOverlaySwipePassesThroughWithoutSwitching() {
+        let engine = RecordingEngine()
+        let interceptor = SwipeInterceptor(engine: engine, isExposeActive: { true })
+        for phase: Int64 in [1, 2, 4] {
+            let sample = event(phase)
+            let result = interceptor.handle(type: CGEventType(rawValue: 30)!, event: sample)
+            XCTAssertTrue(result?.takeUnretainedValue() === sample)
+            XCTAssertEqual(strafe_event_swipe_progress(sample), 0.1, accuracy: 1e-6)
+        }
+        XCTAssertEqual(engine.attempts, 0)
+    }
+
     func testEngineBlocksBothEdges() {
         for (index, direction) in [(UInt32(0), SwitchDirection.left), (4, .right)] {
             let engine = GestureSwitchEngine(spaceInfo: {
