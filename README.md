@@ -1,7 +1,8 @@
 # strafe
 
-**macOS 27 support is available in v0.1.1.** This update restores Space switching
-and prevents the black-screen bounce when swiping past the first or last Space.
+**v0.1.2 adds menu-bar hiding, optional Space-switch hotkeys, and better Mission
+Control detection on macOS 27.** It includes the Space-switching and workspace
+boundary fixes from v0.1.1.
 See [updating](#updating) to rebuild your installed copy.
 
 Swiping between macOS desktop workspaces is a core part of how I personally work. I might have one Figma file open in fullscreen on one space, another open fullscreen in another space, and every other app that I am interacting with likely is in a fullscreen space dedicated to the app. It's how I prefer to work. I swipe between these tabs like a mad-man. I use this to reference a design, go back and forth between spaces quickly and frequently.
@@ -237,9 +238,16 @@ The timings above were measured on macOS 26.3; they are not macOS 27 benchmarks.
 
 ## Acknowledgments
 
-Thanks to [Ozair Khan (@Ozdotdotdot)](https://github.com/Ozdotdotdot) for
-investigating macOS 27 support and contributing the Mission Control detection
-fix in [PR #2](https://github.com/rileycx/strafe/pull/2).
+Thanks to these contributors:
+
+- [Maroun Najjar (@thecolormaroun)](https://github.com/thecolormaroun) for the
+  Space-switch hotkey toggle in [PR #4](https://github.com/rileycx/strafe/pull/4).
+- [Matteo Sandrin (@matteosandrin)](https://github.com/matteosandrin) for menu-bar
+  hiding in [PR #5](https://github.com/rileycx/strafe/pull/5).
+- [Ozair Khan (@Ozdotdotdot)](https://github.com/Ozdotdotdot) for investigating
+  macOS 27 support and contributing the Mission Control detection fix in
+  [PR #2](https://github.com/rileycx/strafe/pull/2), adapted in
+  [PR #6](https://github.com/rileycx/strafe/pull/6).
 
 ## License
 
