@@ -173,4 +173,3 @@ CGEventRef strafe_create_augmented_event(CGEventRef event) {
     CFRelease(new_data);
     return result;
 }
-
