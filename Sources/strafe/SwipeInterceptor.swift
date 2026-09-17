@@ -15,6 +15,7 @@ import CStrafe
 /// makes the unchecked conformance sound.
 final class SwipeInterceptor: @unchecked Sendable {
     private let engine: SwitchEngine
+    private let isExposeActive: () -> Bool
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
@@ -28,9 +29,11 @@ final class SwipeInterceptor: @unchecked Sendable {
     // MARK: - State machine (SPEC §2.3). Main-run-loop confined.
     private var swipeTracking = false
     private var swipeFired = false
+    private var swipePosted = false
 
-    init(engine: SwitchEngine) {
+    init(engine: SwitchEngine, isExposeActive: @escaping () -> Bool = { strafe_is_expose_active() }) {
         self.engine = engine
+        self.isExposeActive = isExposeActive
     }
 
     // MARK: - Lifecycle
@@ -106,11 +109,12 @@ final class SwipeInterceptor: @unchecked Sendable {
         isRunning = false
         swipeTracking = false
         swipeFired = false
+        swipePosted = false
     }
 
     // MARK: - Callback (runs on the main run loop)
 
-    private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // HOT PATH — runs for every gesture/dock-control event the tap sees.
         // Invariant: the reject path (any non-candidate event) must do zero
         // allocations, no Swift string work, no logging, and acquire no lock.
@@ -128,6 +132,7 @@ final class SwipeInterceptor: @unchecked Sendable {
             // gesture-end can't leave us stuck suppressing companion events.
             swipeTracking = false
             swipeFired = false
+            swipePosted = false
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
             return passthrough
         }
@@ -171,9 +176,10 @@ final class SwipeInterceptor: @unchecked Sendable {
 
         if phase == strafe_gesture_phase_began() {
             // Let real gestures through while an overlay (Exposé) is up (SPEC §2.5).
-            if strafe_is_expose_active() { return passthrough }
+            if isExposeActive() { return passthrough }
             swipeTracking = true
             swipeFired = false
+            swipePosted = false
             return nil  // SUPPRESS the real 'began'
 
         } else if phase == strafe_gesture_phase_changed() {
@@ -182,9 +188,8 @@ final class SwipeInterceptor: @unchecked Sendable {
                 let progress = strafe_event_swipe_progress(event)
                 if progress != 0.0 {
                     // Direction is the sign of progress; fire as soon as known.
-                    let dir: SwitchDirection = progress > 0 ? .right : .left
-                    swipeFired = true
-                    try? engine.switchSpace(dir)
+                    let dir: SwitchDirection = strafe_event_moves_right(progress) ? .right : .left
+                    fire(dir)
                 }
             }
             return nil  // SUPPRESS
@@ -195,9 +200,8 @@ final class SwipeInterceptor: @unchecked Sendable {
                 // Fallback: derive direction from the end velocity's sign.
                 let velocity = strafe_event_swipe_velocity_x(event)
                 if velocity != 0.0 {
-                    let dir: SwitchDirection = velocity > 0 ? .right : .left
-                    swipeFired = true
-                    try? engine.switchSpace(dir)
+                    let dir: SwitchDirection = strafe_event_moves_right(velocity) ? .right : .left
+                    fire(dir)
                 } else {
                     // Direction was never determined (no nonzero-progress
                     // `changed`, and zero end velocity), so strafe never acted on
@@ -206,21 +210,45 @@ final class SwipeInterceptor: @unchecked Sendable {
                     // than suppressing an event we never overrode.
                     swipeTracking = false
                     swipeFired = false
+                    swipePosted = false
                     return passthrough
                 }
             }
+            let didPost = swipePosted
             swipeTracking = false
             swipeFired = false
+            swipePosted = false
+            if didPost && strafe_uses_iohid_payload() {
+                // The Dock still needs the real terminal event to close its
+                // native gesture state. Remove motion so it cannot switch twice.
+                strafe_clear_swipe_motion(event)
+                return passthrough
+            }
             return nil  // SUPPRESS
 
         } else if phase == strafe_gesture_phase_cancelled() {
             swipeTracking = false
             swipeFired = false
+            swipePosted = false
             return nil
 
         } else {
             // Any other phase (mayBegin/none): suppress only while tracking.
             return swipeTracking ? nil : passthrough
+        }
+    }
+
+    private func fire(_ direction: SwitchDirection) {
+        swipeFired = true
+        do {
+            try engine.switchSpace(direction)
+            swipePosted = true
+        } catch SwitchEngineError.atEdge {
+            // Suppress the entire real gesture, including its terminal event,
+            // when no neighboring Space exists. Passing the end through on
+            // macOS 27 can trigger the Dock's blank-screen rubber-band effect.
+        } catch {
+            FileHandle.standardError.write(Data("[SwipeInterceptor] switch failed: \(error)\n".utf8))
         }
     }
 }

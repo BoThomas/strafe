@@ -30,6 +30,11 @@ let package = Package(
             name: "strafe",
             dependencies: ["CStrafe"],
             path: "Sources/strafe"
+        ),
+        .testTarget(
+            name: "strafeTests",
+            dependencies: ["strafe", "CStrafe"],
+            path: "Tests/strafeTests"
         )
     ]
 )

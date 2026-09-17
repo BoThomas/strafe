@@ -76,6 +76,16 @@ That is the entire surface of event data strafe inspects: enough to tell a real
 horizontal 3-finger space swipe from anything else, and its direction. No
 coordinates, no window contents, no clipboard, no key codes.
 
+On macOS 27 and later, `Sources/CStrafe/IOHIDPayload.c` also serializes synthetic
+events in memory to attach the raw IOHID payload required by the Dock (field
+4205). Its position, phase, progress, and velocity values come from the event
+strafe constructs, not recorded trackpad data. This code is adapted from
+joshuarli/iss (0BSD; see LICENSE). It adds no permissions, input event types,
+network access, or file access. The real swipe's terminal event is passed
+through with its motion cleared after a replacement switch so the Dock can
+finish its gesture state. At the first or last Space, strafe suppresses the
+entire blocked swipe, including its terminal event, to prevent a bounce-back.
+
 Beyond the swipe event itself, strafe also calls `CGWindowListCopyWindowInfo`
 (reading window owner names and layer numbers, to detect whether Exposé/Mission
 Control is open so it can pass real swipes through — `strafe_is_expose_active`,
@@ -83,6 +93,10 @@ Control is open so it can pass real swipes through — `strafe_is_expose_active`
 pick which display to switch on (`copy_cursor_display_identifier`, same file
 line 112). Neither the window list nor the cursor position is stored or
 transmitted; both are read, used for that one decision, and discarded.
+
+On macOS 27 and later, a Dock-owned window at layer 20 is enough to detect
+Mission Control; older systems keep the existing layer-18 requirement. This
+uses the same window metadata and adds no permissions or data collection.
 
 ---
 
@@ -135,8 +149,8 @@ Each of these is verifiable with a single grep over `Sources/`.
   art, it does **not** shell out to `tccutil` or anything else
   (`grep -rniE 'Process\(\)|/usr/bin|/bin/|tccutil' Sources/` — no spawns).
 
-- **No persistence beyond two menu settings.** strafe stores no databases and no
-  caches. It writes two `UserDefaults` values: `transitionSpeed`, an integer
+- **Persistence is limited to menu settings.** strafe stores no databases and no
+  caches. Its own code writes two `UserDefaults` values: `transitionSpeed`, an integer
   0–2 recording which **Transition speed** preset you picked in the menu
   (`TransitionSpeed`, `Sources/strafe/TransitionSpeed.swift` line 101); and
   `spaceHotkeysEnabled`, a bool recording whether the Ctrl+Option+Left/Right
@@ -157,8 +171,12 @@ Each of these is verifiable with a single grep over `Sources/`.
   grep -rn 'UserDefaults(' Sources/       # one hit: the suite in Preferences.swift
   ```
 
-  No usage data, no history, no coordinates — the plist holds two small
-  values. Deleting `strafe.app` leaves behind only that plist, which
+  AppKit also saves menu-bar item visibility automatically when the icon is
+  hidden or shown. strafe resets visibility on every fresh launch, so hiding
+  the icon only lasts until the app is reopened or restarted.
+
+  No usage data, no history, no coordinates are stored.
+  Deleting `strafe.app` leaves behind only that plist, which
   `defaults delete com.rileycx.strafe` removes (see README → Uninstall).
 
 ---

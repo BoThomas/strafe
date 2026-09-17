@@ -21,6 +21,12 @@ jobs:
       - name: Build (strict concurrency, warnings as errors)
         run: swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
+      - name: Test gesture payload serialization (no input events posted)
+        run: bash Tests/run.sh
+
+      - name: Test Space boundaries and gesture completion
+        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
       - name: Bundle strafe.app (ad-hoc signed in CI)
         run: ./Scripts/bundle.sh
 

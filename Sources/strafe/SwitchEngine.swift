@@ -56,6 +56,7 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
     static let instantVelocity: Double = 2000.0
 
     private let velocity: Double
+    private let spaceInfo: @Sendable () -> StrafeInfo?
 
     /// Per-display predicted current-space index, keyed by display UUID
     /// (SPEC §2.4). Avoids rebounding off the laggy live active-space query.
@@ -78,8 +79,13 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
         label: "com.rileycx.strafe.ramp", qos: .userInteractive
     )
 
-    init(velocity: Double = GestureSwitchEngine.instantVelocity) {
+    init(velocity: Double = GestureSwitchEngine.instantVelocity,
+         spaceInfo: @escaping @Sendable () -> StrafeInfo? = {
+             var info = StrafeInfo()
+             return strafe_get_space_info(&info) ? info : nil
+         }) {
         self.velocity = velocity
+        self.spaceInfo = spaceInfo
     }
 
     /// Whether the private CGS topology symbols resolved (SPEC §1.1, §6).
@@ -151,10 +157,7 @@ final class GestureSwitchEngine: SwitchEngine, @unchecked Sendable {
     func switchSpace(_ direction: SwitchDirection) throws {
         // Read live topology once. If CGS symbols are unavailable we can't do
         // bounds/prediction bookkeeping — fall back to posting unconditionally.
-        var info = StrafeInfo()
-        let haveInfo = strafe_get_space_info(&info)
-
-        if haveInfo {
+        if let info = spaceInfo() {
             let displayID = withUnsafeBytes(of: info.displayID) { raw -> String in
                 let ptr = raw.baseAddress!.assumingMemoryBound(to: CChar.self)
                 return String(cString: ptr)

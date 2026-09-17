@@ -1,5 +1,9 @@
 # strafe
 
+**macOS 27 support is available in v0.1.1.** This update restores Space switching
+and prevents the black-screen bounce when swiping past the first or last Space.
+See [updating](#updating) to rebuild your installed copy.
+
 Swiping between macOS desktop workspaces is a core part of how I personally work. I might have one Figma file open in fullscreen on one space, another open fullscreen in another space, and every other app that I am interacting with likely is in a fullscreen space dedicated to the app. It's how I prefer to work. I swipe between these tabs like a mad-man. I use this to reference a design, go back and forth between spaces quickly and frequently.
 
 There's only one problem... If you work like this, you will know that whenever you 3-finger swipe between these spaces on macOS, there is a slight delay between when you swipe and when you can actually click on something post-swipe. That delay is slight. 150ms or so (I measured.) But 150ms fifty times in an hour is 7.5 seconds. 7.5 seconds each hour you work is about 60 seconds per day. It's death by a thousand cuts.
@@ -85,6 +89,10 @@ is an independent reimplementation of that idea; if you want the original, go
 give InstantSpaceSwitcher a star. See [LICENSE](LICENSE) for the full
 acknowledgment and their copyright notice.
 
+The macOS 27 gesture payload support is adapted from
+[joshuarli/iss](https://github.com/joshuarli/iss) (0BSD), which identified the
+embedded IOHID data now required for synthetic Space switches.
+
 ## Install
 
 strafe is distributed as source only — there is no prebuilt binary to trust.
@@ -117,6 +125,23 @@ The app is about 1,486 lines of Swift and C with no third-party dependencies —
 [SECURITY.md](SECURITY.md).
 
 
+## Updating
+
+From your existing clone:
+
+```bash
+git pull --ff-only
+./Scripts/install.sh
+```
+
+Because local builds are ad-hoc signed, remove the old strafe entry in
+**System Settings › Privacy & Security › Accessibility**, add the updated
+`/Applications/strafe.app`, and enable it. Quit and reopen strafe afterward.
+
+Version 0.1.1 uses the new gesture format only on macOS 27 and later. Earlier
+versions retain the original switching path and the minimum remains macOS 15.
+This update was tested on macOS 27.0; older macOS versions have not been retested.
+
 ## Usage
 
 - **3-finger swipe** — just works once strafe is running and has Accessibility.
@@ -137,6 +162,11 @@ The app is about 1,486 lines of Swift and C with no third-party dependencies —
   Nothing slower is offered. The next step up measures ~170 ms, which is
   macOS's own animated switch — and that is already what you get with strafe
   turned off.
+
+- **Hide from menu bar** *(menu bar › Hide from menu bar)* — hide the strafe
+  icon from the menu bar. The app keeps running: swipes and shortcuts still work.
+  To get the icon back, open strafe again. The icon also returns on every fresh
+  launch.
 - **CLI:**
 
   ```
@@ -154,9 +184,9 @@ swipe and replace it with the instant one.
 
 The tap sees only trackpad gesture and dock-control events. It does **not** see
 keystrokes: the event mask excludes key events entirely, and strafe has no
-network, telemetry, file access, or subprocess code. It stores exactly one
-preference: which transition speed you picked. Every one of those claims is
-grep-verifiable — see [SECURITY.md](SECURITY.md) for the exact file and line
+network, telemetry, file access, or subprocess code. It saves your transition
+speed preference; AppKit also saves menu-bar icon visibility, which strafe resets
+on launch. See [SECURITY.md](SECURITY.md) for the exact file and line
 pointers.
 
 To revoke: **System Settings › Privacy & Security › Accessibility**, and toggle
@@ -168,10 +198,10 @@ strafe off (or remove it from the list).
 2. Delete `strafe.app`.
 3. Remove its entry from **System Settings › Privacy & Security ›
    Accessibility**.
-4. If you ever changed the transition speed: `defaults delete com.rileycx.strafe`.
+4. Remove saved settings: `defaults delete com.rileycx.strafe`.
 
-That's everything. strafe writes no caches, databases, or other files — that one
-preference is the only thing it can leave behind.
+That's everything. strafe writes no caches or databases; the saved menu settings
+are the only app data it can leave behind.
 
 ## How it works
 
@@ -187,6 +217,25 @@ never runs its own animated version. For the field-by-field derivation, read
 
 - macOS 15 or newer
 - Apple Silicon (that is what strafe is built and tested on)
+
+### macOS 27 compatibility
+
+If an older build opens but swipes do nothing on macOS 27, rebuild and install
+the current source. macOS 27 requires an embedded IOHID payload on synthetic
+gestures and reverses their direction encoding. This build handles both at
+runtime, retaining the existing gesture format on earlier macOS versions.
+
+After replacing an ad-hoc signed build, remove the stale strafe entry in
+**System Settings › Privacy & Security › Accessibility**, add the updated
+`/Applications/strafe.app`, enable it, and relaunch strafe.
+
+The timings above were measured on macOS 26.3; they are not macOS 27 benchmarks.
+
+## Acknowledgments
+
+Thanks to [Ozair Khan (@Ozdotdotdot)](https://github.com/Ozdotdotdot) for
+investigating macOS 27 support and contributing the Mission Control detection
+fix in [PR #2](https://github.com/rileycx/strafe/pull/2).
 
 ## License
 
