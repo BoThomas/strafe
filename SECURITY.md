@@ -76,6 +76,16 @@ That is the entire surface of event data strafe inspects: enough to tell a real
 horizontal 3-finger space swipe from anything else, and its direction. No
 coordinates, no window contents, no clipboard, no key codes.
 
+On macOS 27 and later, `Sources/CStrafe/IOHIDPayload.c` also serializes synthetic
+events in memory to attach the raw IOHID payload required by the Dock (field
+4205). Its position, phase, progress, and velocity values come from the event
+strafe constructs, not recorded trackpad data. This code is adapted from
+joshuarli/iss (0BSD; see LICENSE). It adds no permissions, input event types,
+network access, or file access. The real swipe's terminal event is passed
+through with its motion cleared after a replacement switch so the Dock can
+finish its gesture state. At the first or last Space, strafe suppresses the
+entire blocked swipe, including its terminal event, to prevent a bounce-back.
+
 Beyond the swipe event itself, strafe also calls `CGWindowListCopyWindowInfo`
 (reading window owner names and layer numbers, to detect whether Exposé/Mission
 Control is open so it can pass real swipes through — `strafe_is_expose_active`,

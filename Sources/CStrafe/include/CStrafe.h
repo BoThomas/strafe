@@ -35,6 +35,12 @@ typedef struct {
 // topology can't be read (bounds guard degrades) but synthesis still works.
 bool strafe_cgs_available(void);
 
+// Runtime OS capability; macOS 27 requires augmented synthetic gestures and
+// reverses the sign of incoming horizontal progress/velocity.
+bool strafe_uses_iohid_payload(void);
+bool strafe_event_moves_right(double progressOrVelocity);
+void strafe_clear_swipe_motion(CGEventRef event);
+
 // --- Synthesis (SPEC §1.4, §1.5) ------------------------------------------
 // Post one instant single-step dock swipe: began -> changed -> ended, all
 // immediately with no delay, to kCGSessionEventTap. Returns false only if an

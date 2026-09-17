@@ -6,6 +6,7 @@
 // version-fragile (SPEC §7).
 
 #include "CStrafe.h"
+#include "IOHIDPayload.h"
 
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreGraphics/CGEventTypes.h>
@@ -21,6 +22,9 @@ static const CGEventField kCGEventGestureSwipeProgress = (CGEventField)124;  // 
 static const CGEventField kCGEventGestureSwipeVelocityX= (CGEventField)129;  // (double)
 static const CGEventField kCGEventGestureSwipeVelocityY= (CGEventField)130;  // (double)
 static const CGEventField kCGEventGesturePhase         = (CGEventField)132;  // CGSGesturePhase
+static const CGEventField kCGEventGestureSwipePositionX = (CGEventField)125;
+static const CGEventField kCGEventGesturePhaseAlias     = (CGEventField)134;
+static const CGEventField kCGEventGestureZoomDeltaY     = (CGEventField)138;
 
 // --- Type / enum constants (SPEC §1.3) ------------------------------------
 static const uint32_t kIOHIDEventTypeDockSwipe = 23;   // written into field 110
@@ -61,10 +65,18 @@ bool strafe_cgs_available(void) {
 }
 
 // --- Synthesis (SPEC §1.5) ------------------------------------------------
+bool strafe_uses_iohid_payload(void) {
+    if (__builtin_available(macOS 27.0, *)) { return true; }
+    return false;
+}
+
 // One phase of a horizontal dock swipe, with progress and velocity supplied by
 // the caller. Every field the WindowServer reads is set here; the two callers
 // below differ only in the numbers they hand it.
 static bool post_dock_swipe_shaped(CGSGesturePhase phase, double progress, double velocity) {
+    const bool augmented = strafe_uses_iohid_payload();
+    // Keep the caller-facing sign stable: positive means the Space on the right.
+    if (augmented) { progress = -progress; velocity = -velocity; }
     CGEventRef ev = CGEventCreate(NULL);
     if (!ev) { return false; }
     CGEventSetIntegerValueField(ev, kCGSEventTypeField,            kCGSEventDockControl);
@@ -73,19 +85,41 @@ static bool post_dock_swipe_shaped(CGSGesturePhase phase, double progress, doubl
     CGEventSetDoubleValueField (ev, kCGEventGestureSwipeProgress,  progress);
     CGEventSetIntegerValueField(ev, kCGEventGestureSwipeMotion,    kCGGestureMotionHorizontal);
     CGEventSetDoubleValueField (ev, kCGEventGestureSwipeVelocityX, velocity);
-    CGEventSetDoubleValueField (ev, kCGEventGestureSwipeVelocityY, velocity);
+    CGEventSetDoubleValueField (ev, kCGEventGestureSwipeVelocityY, augmented ? 0 : velocity);
+    CGEventRef companion = NULL;
+    if (augmented) {
+        CGEventSetIntegerValueField(ev, kCGEventGesturePhaseAlias, phase);
+        CGEventSetDoubleValueField(ev, kCGEventGestureZoomDeltaY, 3.0);
+        CGEventSetDoubleValueField(ev, kCGEventGestureSwipePositionX, 0.1);
+        CGEventRef replacement = strafe_create_augmented_event(ev);
+        CFRelease(ev);
+        if (!replacement) { return false; }
+        ev = replacement;
+        companion = CGEventCreate(NULL);
+        if (!companion) { CFRelease(ev); return false; }
+        CGEventSetIntegerValueField(companion, kCGSEventTypeField, kCGSEventGesture);
+    }
     CGEventPost(kCGSessionEventTap, ev);
+    if (companion) {
+        CGEventPost(kCGSessionEventTap, companion);
+        CFRelease(companion);
+    }
     CFRelease(ev);
     return true;
 }
 
 static bool post_dock_swipe(CGSGesturePhase phase, StrafeDirection direction, double velocity) {
     const bool isRight = (direction == StrafeDirectionRight);
-    // Empirically, ±FLT_TRUE_MIN used in this way makes switching instant.
-    const double progress = isRight ? (double)FLT_TRUE_MIN : -(double)FLT_TRUE_MIN;
+    // Keep travel visually negligible. Full travel (1.0) switches on macOS 27
+    // but can still animate a slide. 1e-4 also survives conversion
+    // to the IOHID payload's signed 16.16 value without losing direction.
+    const bool augmented = strafe_uses_iohid_payload();
+    const double magnitude = augmented ? 1e-4 : (double)FLT_TRUE_MIN;
+    const double progress = isRight ? magnitude : -magnitude;
 
     // Velocity of gesture based on speed setting.
-    const double vel = isRight ? velocity : -velocity;
+    const double vel = augmented && phase != kCGSGesturePhaseEnded
+        ? 0.0 : (isRight ? velocity : -velocity);
 
     return post_dock_swipe_shaped(phase, progress, vel);
 }
@@ -239,6 +273,16 @@ double strafe_event_swipe_velocity_x(CGEventRef event) {
 }
 int64_t strafe_event_source_pid(CGEventRef event) {
     return CGEventGetIntegerValueField(event, kCGEventSourceUnixProcessID);
+}
+
+bool strafe_event_moves_right(double progressOrVelocity) {
+    return strafe_uses_iohid_payload() ? progressOrVelocity < 0 : progressOrVelocity > 0;
+}
+
+void strafe_clear_swipe_motion(CGEventRef event) {
+    CGEventSetDoubleValueField(event, kCGEventGestureSwipeProgress, 0);
+    CGEventSetDoubleValueField(event, kCGEventGestureSwipeVelocityX, 0);
+    CGEventSetDoubleValueField(event, kCGEventGestureSwipeVelocityY, 0);
 }
 
 // --- Constants (SPEC §1.3) ------------------------------------------------
