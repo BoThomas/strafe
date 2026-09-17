@@ -94,6 +94,10 @@ pick which display to switch on (`copy_cursor_display_identifier`, same file
 line 112). Neither the window list nor the cursor position is stored or
 transmitted; both are read, used for that one decision, and discarded.
 
+On macOS 27 and later, a Dock-owned window at layer 20 is enough to detect
+Mission Control; older systems keep the existing layer-18 requirement. This
+uses the same window metadata and adds no permissions or data collection.
+
 ---
 
 ## What strafe never does

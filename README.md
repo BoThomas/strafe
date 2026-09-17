@@ -198,10 +198,10 @@ strafe off (or remove it from the list).
 2. Delete `strafe.app`.
 3. Remove its entry from **System Settings › Privacy & Security ›
    Accessibility**.
-4. If you ever changed the transition speed: `defaults delete com.rileycx.strafe`.
+4. Remove saved settings: `defaults delete com.rileycx.strafe`.
 
-That's everything. strafe writes no caches, databases, or other files — that one
-preference is the only thing it can leave behind.
+That's everything. strafe writes no caches or databases; the saved menu settings
+are the only app data it can leave behind.
 
 ## How it works
 
@@ -230,6 +230,12 @@ After replacing an ad-hoc signed build, remove the stale strafe entry in
 `/Applications/strafe.app`, enable it, and relaunch strafe.
 
 The timings above were measured on macOS 26.3; they are not macOS 27 benchmarks.
+
+## Acknowledgments
+
+Thanks to [Ozair Khan (@Ozdotdotdot)](https://github.com/Ozdotdotdot) for
+investigating macOS 27 support and contributing the Mission Control detection
+fix in [PR #2](https://github.com/rileycx/strafe/pull/2).
 
 ## License
 
