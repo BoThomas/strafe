@@ -34,6 +34,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
+        // AppKit restores the previous visibility; every new launch starts visible.
+        statusItem.isVisible = true
+
         if let button = statusItem.button {
             button.image = NSImage(
                 systemSymbolName: "rectangle.on.rectangle",
@@ -70,12 +73,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        let hide = NSMenuItem(
+            title: "Hide from menu bar", action: #selector(hideFromMenuBar), keyEquivalent: ""
+        )
+        hide.target = self
+        menu.addItem(hide)
         let quit = NSMenuItem(title: "Quit strafe", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 
         statusItem.menu = menu
         refresh()
+    }
+
+    // Show the icon again. Called when the app is reopened while it is already running.
+    func show() {
+        statusItem.isVisible = true
     }
 
     /// The "Transition speed" submenu: one checkable item per preset.
@@ -125,6 +138,25 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         engine?.setTransitionSpeed(speed)
         speed.persist()
         refresh()
+    }
+
+    // AppKit saves visibility; initialization resets it on the next launch.
+    @objc private func hideFromMenuBar() {
+        let alert = NSAlert()
+        alert.messageText = "Hide strafe from the menu bar?"
+        alert.informativeText = """
+            strafe stays running in the background. Swipes and keyboard \
+            shortcuts keep working.
+
+            To bring the icon back or to quit, open strafe again from \
+            Applications or Spotlight.
+            """
+        alert.addButton(withTitle: "Hide")
+        alert.addButton(withTitle: "Cancel")
+        // An accessory app is never frontmost, so bring the alert forward.
+        NSApp.activate()
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        statusItem.isVisible = false
     }
 
     @objc private func quit() {

@@ -149,6 +149,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         interceptor.start()
     }
 
+    // Sent when the app is opened while already running. This how you unhide the menubar icon.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        statusItem?.show()
+        return false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         interceptor?.teardown()
         hotkeys?.unregister()

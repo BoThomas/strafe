@@ -162,6 +162,11 @@ This update was tested on macOS 27.0; older macOS versions have not been reteste
   Nothing slower is offered. The next step up measures ~170 ms, which is
   macOS's own animated switch — and that is already what you get with strafe
   turned off.
+
+- **Hide from menu bar** *(menu bar › Hide from menu bar)* — hide the strafe
+  icon from the menu bar. The app keeps running: swipes and shortcuts still work.
+  To get the icon back, open strafe again. The icon also returns on every fresh
+  launch.
 - **CLI:**
 
   ```
@@ -179,9 +184,9 @@ swipe and replace it with the instant one.
 
 The tap sees only trackpad gesture and dock-control events. It does **not** see
 keystrokes: the event mask excludes key events entirely, and strafe has no
-network, telemetry, file access, or subprocess code. It stores exactly one
-preference: which transition speed you picked. Every one of those claims is
-grep-verifiable — see [SECURITY.md](SECURITY.md) for the exact file and line
+network, telemetry, file access, or subprocess code. It saves your transition
+speed preference; AppKit also saves menu-bar icon visibility, which strafe resets
+on launch. See [SECURITY.md](SECURITY.md) for the exact file and line
 pointers.
 
 To revoke: **System Settings › Privacy & Security › Accessibility**, and toggle
