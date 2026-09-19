@@ -16,6 +16,7 @@ import CStrafe
 final class SwipeInterceptor: @unchecked Sendable {
     private let engine: SwitchEngine
     private let isExposeActive: () -> Bool
+    private let overlayMonitor: DockOverlayMonitor?
     private var eventTap: (any SwipeEventTap)?
     private let accessibilityGranted: () -> Bool
     private let makeTap: (CGEventTapCallBack, UnsafeMutableRawPointer) -> (any SwipeEventTap)?
@@ -42,11 +43,18 @@ final class SwipeInterceptor: @unchecked Sendable {
     private var swipePosted = false
 
     init(engine: SwitchEngine,
-         isExposeActive: @escaping () -> Bool = { strafe_is_expose_active() },
+         isExposeActive: (() -> Bool)? = nil,
          accessibilityGranted: @escaping () -> Bool = { Permissions.isAccessibilityGranted },
          makeTap: @escaping (CGEventTapCallBack, UnsafeMutableRawPointer) -> (any SwipeEventTap)? = SystemSwipeEventTap.make) {
         self.engine = engine
-        self.isExposeActive = isExposeActive
+        if let isExposeActive {
+            self.isExposeActive = isExposeActive
+            self.overlayMonitor = nil
+        } else {
+            let monitor = DockOverlayMonitor()
+            self.overlayMonitor = monitor
+            self.isExposeActive = { monitor.isActive }
+        }
         self.accessibilityGranted = accessibilityGranted
         self.makeTap = makeTap
     }
@@ -54,6 +62,7 @@ final class SwipeInterceptor: @unchecked Sendable {
     deinit {
         recoveryTimer?.invalidate()
         eventTap?.invalidate()
+        overlayMonitor?.stop()
     }
 
     // MARK: - Lifecycle
@@ -61,6 +70,7 @@ final class SwipeInterceptor: @unchecked Sendable {
     /// Keep trying until the tap exists, including when permission is granted
     /// after launch. The timer only checks trust/tap health; it reads no input.
     func start() {
+        overlayMonitor?.start()
         wantsRunning = true
         if recoveryTimer == nil {
             let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -125,6 +135,7 @@ final class SwipeInterceptor: @unchecked Sendable {
 
     /// Disable the tap without tearing it down (can be re-enabled cheaply).
     func disable() {
+        overlayMonitor?.stop()
         wantsRunning = false
         recoveryTimer?.invalidate()
         recoveryTimer = nil
