@@ -175,6 +175,11 @@ This update was tested on macOS 27.0; older macOS versions have not been reteste
   macOS's own animated switch — and that is already what you get with strafe
   turned off.
 
+- **Invert swipe direction** *(Settings › Trackpad gestures)* — if a
+  three-finger swipe switches the "wrong" way on your machine (trackpad
+  hardware and scrolling settings vary), flip the mapping with one checkbox.
+  Applies immediately and persists; keyboard shortcuts are unaffected.
+
 - **Hide from menu bar** *(menu bar › Hide from menu bar)* — hide the strafe
   icon from the menu bar. The app keeps running: swipes and shortcuts still work.
   To get the icon back, open strafe again. The icon also returns on every fresh

@@ -23,6 +23,10 @@ final class SwipeInterceptor: @unchecked Sendable {
     private var recoveryTimer: Timer?
     private var wantsRunning = false
     private var reportedCreationFailure = false
+    /// Whether gesture-derived directions are flipped before switching.
+    /// Read once at init and only mutated from the main run loop (the same
+    /// confinement as the gesture state below), so no locking is needed.
+    private var invertDirection = SwipeInversion.stored
 
     /// Whether the tap is currently created and enabled.
     var isRunning: Bool { eventTap?.isEnabled ?? false }
@@ -36,6 +40,16 @@ final class SwipeInterceptor: @unchecked Sendable {
     /// Whether interception is active. When false the callback passes every
     /// event through untouched (SPEC §2.2: "only acts when swipeOverrideEnabled").
     var overrideEnabled: Bool = true
+
+    /// Whether swipes currently fire the opposite direction (Settings › Trackpad gestures).
+    var isInverted: Bool { invertDirection }
+
+    /// Flip gesture-derived directions on or off. Persists the choice and
+    /// applies it immediately — no relaunch needed.
+    func setInverted(_ inverted: Bool) {
+        SwipeInversion.persist(inverted)
+        invertDirection = inverted
+    }
 
     // MARK: - State machine (SPEC §2.3). Main-run-loop confined.
     private var swipeTracking = false
@@ -282,8 +296,16 @@ final class SwipeInterceptor: @unchecked Sendable {
 
     private func fire(_ direction: SwitchDirection) {
         swipeFired = true
+        // The user-facing direction knob (Settings › Trackpad gestures). Applied
+        // here — once, at the single point where a gesture-derived direction
+        // becomes an engine request — so both the progress-based and the
+        // velocity-based determination paths honor it, and keyboard shortcuts
+        // (which never go through `fire`) keep their explicit meaning.
+        let effective = invertDirection
+            ? (direction == .left ? SwitchDirection.right : .left)
+            : direction
         do {
-            try engine.switchSpace(direction)
+            try engine.switchSpace(effective)
             swipePosted = true
         } catch SwitchEngineError.atEdge {
             // Suppress the entire real gesture, including its terminal event,

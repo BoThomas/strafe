@@ -34,6 +34,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var recorders: [ShortcutAction: ShortcutRecorder] = [:]
     private var recordingAction: ShortcutAction?
     private let enableShortcuts = NSButton(checkboxWithTitle: "Enable keyboard shortcuts", target: nil, action: nil)
+    private let invertSwipe = NSButton(checkboxWithTitle: "Invert swipe direction", target: nil, action: nil)
     private let speed = NSPopUpButton(frame: .zero, pullsDown: false)
     private let message = NSTextField(wrappingLabelWithString: "")
     private let swipeStatus = NSTextField(wrappingLabelWithString: "")
@@ -148,6 +149,15 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let gestures = NSTextField(labelWithString: "Trackpad gestures")
         gestures.font = .systemFont(ofSize: 16, weight: .semibold)
         stack.addArrangedSubview(gestures)
+        invertSwipe.target = self
+        invertSwipe.action = #selector(toggleInvertSwipe)
+        invertSwipe.setAccessibilityLabel("Invert swipe direction")
+        stack.addArrangedSubview(invertSwipe)
+        let invertHelp = NSTextField(wrappingLabelWithString: "Flip the direction a three-finger swipe switches in, if it feels backwards compared to the native gesture. Applies immediately; keyboard shortcuts are unaffected.")
+        invertHelp.font = .systemFont(ofSize: 12)
+        invertHelp.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(invertHelp)
+        invertHelp.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         swipeStatus.font = .systemFont(ofSize: 12)
         swipeStatus.textColor = .secondaryLabelColor
         stack.addArrangedSubview(swipeStatus)
@@ -165,6 +175,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         }
         if let error = hotkeys.registrationError { message.stringValue = error }
         speed.selectItem(at: (engine?.transitionSpeed ?? TransitionSpeed.stored).rawValue)
+        invertSwipe.state = interceptor.isInverted ? .on : .off
         refreshSwipeStatus()
     }
 
@@ -229,6 +240,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let selected = TransitionSpeed.from(rawValue: speed.indexOfSelectedItem)
         selected.persist()
         engine?.setTransitionSpeed(selected)
+    }
+
+    @objc private func toggleInvertSwipe() {
+        interceptor.setInverted(invertSwipe.state == .on)
     }
 
     func windowDidResignKey(_ notification: Notification) { cancelRecording() }
